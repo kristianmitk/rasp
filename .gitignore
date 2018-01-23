@@ -1,0 +1,10 @@
+# platformIO
+.pioenvs
+.piolibdeps
+./lib/readme.txt
+# clang
+.clang_complete
+# gcc
+.gcc-flags.json
+# mac
+.DS_STORE

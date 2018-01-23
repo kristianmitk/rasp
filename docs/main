@@ -1,0 +1,10 @@
+ServerState
+    - maintains the current state of the server (role, log etc.)
+    - also handles passed packets from the `UDPServer`. Valid ones are RequestVoteMessage and AppendEntriesMessage
+
+UDPServer
+    - handles incoming packets by parsing them and creating proper corresponding message struct.
+      forwards the message struct to the `ServerState` who than handles the message.
+
+EventTimer (by now prefer the serverState to handle this)
+    - triggers after election timeout the corresponding procedure (change to candidate role and start a new election)
