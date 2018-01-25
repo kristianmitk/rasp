@@ -5,7 +5,7 @@
 #include "WiFiUdp.h"
 #include "messages.h"
 #include "rasp_nodes.h"
-#include "util.h"
+#include "marshall.h"
 
 // TODO: outsource constants
 #define UDP_INCOMING_BUFFER_SIZE 2048
@@ -14,7 +14,7 @@
 IPAddress sender;
 
 // TODO: move function bodies into .cpp file
-class UDP_Server {
+class UDPServer {
 public:
 
     /**
@@ -54,7 +54,6 @@ public:
 
         uint8_t buf[4];
         pack_uint32_t(buf, 0, 201);
-        Serial.println();
 
         for (int i = 0; i < RASP_NUM_SERVERS; i++) {
             Serial.printf("Sending heartbeat to: %s\n", servers[i].IP);

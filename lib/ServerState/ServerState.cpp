@@ -1,51 +1,32 @@
 #include "ServerState.h"
-
+#include "util.h"
 
 // TODO: outsource boundaries to a config file
 #define MIN_ELECTION_TIMEOUT 150
 #define MAX_ELECTION_TIMEOUT 300
 #define generateTimeout() random(MIN_ELECTION_TIMEOUT, MAX_ELECTION_TIMEOUT)
 
-// majority of the cluster
-#define requiredVotes (RASP_NUM_SERVERS / 2 + 1)
+#define REQUIRED_VOTES (RASP_NUM_SERVERS / 2 + 1)
 
 ServerState::ServerState(uint32_t id) {
-    receivedVotes   = 0;
     selfID          = id;
-    currentTerm     = 0;
-    votedFor        = 0;
-    log             = new Log();
+    receivedVotes   = 0;
+    currentTerm     = RASPFS::getInstance().read(CURRENT_TERM);
+    votedFor        = RASPFS::getInstance().read(VOTED_FOR);
     commitIndex     = 0;
     lastApplied     = 0;
+    log             = new Log();
     role            = FOLLOWER;
     electionTimeout = generateTimeout();
     lastTimeout     = millis();
 
-    Serial.println("Initialized ServerState");
-
-    Serial.printf("%-25s%-25s%-25s%-25s\n",
-                  "currentTerm",
-                  "votedFor",
-                  "electionTimeout",
-                  "lastTimeout"
-                  );
-    Serial.printf("%-25lu%-25lu%-25lu%-25lu",
-                  currentTerm,
-                  votedFor,
-                  electionTimeout,
-                  lastTimeout
-                  );
+    this->serialPrint();
 }
 
 RequestVoteResponse ServerState::handleRequestVoteReq(uint32_t term,
                                                       uint32_t candidateID,
                                                       uint32_t lastLogIndex,
                                                       uint32_t lastLogTerm) {
-    Serial.println("------handleRequestVoteRCP------");
-    Serial.println(term);
-    Serial.println(candidateID);
-    Serial.println(lastLogIndex);
-    Serial.println(lastLogTerm);
     RequestVoteResponse res;
 
     res.term        = currentTerm;
@@ -75,33 +56,33 @@ RequestVoteResponse ServerState::handleRequestVoteReq(uint32_t term,
 }
 
 RequestVoteResponse ServerState::handleRequestVoteReq(RequestVoteRequest msg) {
+    msg.serialPrint();
     return handleRequestVoteReq(msg.term,
                                 msg.candidateID,
                                 msg.lastLogIndex,
                                 msg.lastLogTerm);
 }
 
-void ServerState::handleRequestVoteRes(uint32_t term,
-                                       uint8_t  voteGranted) {
-    Serial.printf("RVRes. term: %d, voteGranted: %d, role: %d\n",
-                  term,
-                  voteGranted,
-                  role);
+void ServerState::handleRequestVoteRes(uint32_t term, uint8_t  voteGranted) {
+    Serial.printf("\n\nROLE: %d", this->role);
 
-    if (role == CANDIDATE) {
-        if (voteGranted) {
-            receivedVotes++;
+    if (this->role == CANDIDATE) {
+        // make sure not to count obsolete responses
+        if (voteGranted && (term <= this->currentTerm)) {
+            this->receivedVotes++;
             checkGrantedVotes();
-        } else {
-            if (currentTerm < term) { // this condition might be superfluous
-                currentTerm = term;
-                role        = FOLLOWER;
-            }
+            return;
         }
-    } // ELSE ignore obsolete packet
+
+        if (this->currentTerm < term) {
+            this->currentTerm = term;
+            role              = FOLLOWER;
+        }
+    }
 }
 
 void ServerState::handleRequestVoteRes(RequestVoteResponse msg) {
+    msg.serialPrint();
     return handleRequestVoteRes(msg.term,
                                 msg.voteGranted);
 }
@@ -109,15 +90,21 @@ void ServerState::handleRequestVoteRes(RequestVoteResponse msg) {
 RequestVoteRequest ServerState::checkElectionTimeout() {
     RequestVoteRequest msg;
 
-    if (millis() > lastTimeout + electionTimeout) {
-        Serial.println("\n[WARN] Election timout ---> starting a new election");
-        role = CANDIDATE;
-        currentTerm++;
+    if (this->role == LEADER) return msg;
 
-        // starting a new election always results in first voting for
-        // itself
+    if (millis() > lastTimeout + electionTimeout) {
+        Serial.printf("\n[WARN] Election timout. Starting a new election\n");
+        role = CANDIDATE;
+
+        // Serial.printf("\nBEFORE:%lu\n", millis());
+
+        RASPFS::getInstance().write(CURRENT_TERM, ++this->currentTerm);
+
+        // Serial.printf("\nAFTER:%lu\n", millis());
+
+        // starting a new election always results in first voting for itself
         receivedVotes    = 1;
-        votedFor         = selfID;
+        votedFor         = RASPFS::getInstance().write(VOTED_FOR, selfID);
         msg.term         = this->currentTerm;
         msg.candidateID  = this->selfID;
         msg.lastLogIndex = this->log->latestIndex;
@@ -130,8 +117,10 @@ RequestVoteRequest ServerState::checkElectionTimeout() {
 
 void ServerState::checkGrantedVotes() {
     // TODO: better timeouts
-    if (requiredVotes <= receivedVotes) {
-        Serial.printf("ELECTED LEADER! Received %d votes\n", receivedVotes);
+    Serial.printf("required: %d, received %d\n", REQUIRED_VOTES, receivedVotes);
+
+    if (REQUIRED_VOTES <= receivedVotes) {
+        Serial.printf("ELECTED LEADER!\n", receivedVotes);
         role             = LEADER;
         heartbeatTimeout = random(100, 150);
         lastTimeout      = millis();
@@ -139,7 +128,6 @@ void ServerState::checkGrantedVotes() {
                       heartbeatTimeout,
                       lastTimeout);
     }
-    Serial.printf("required: %d, received %d\n", requiredVotes, receivedVotes);
 }
 
 void ServerState::resetElectionTimeout() {
@@ -161,6 +149,8 @@ Role ServerState::getRole() {
 }
 
 uint8_t ServerState::checkHeartbeatTimeout() {
+    if (this->role != LEADER) return 0;
+
     if (millis() > lastTimeout + heartbeatTimeout) {
         lastTimeout = millis();
         return 1;
@@ -168,6 +158,17 @@ uint8_t ServerState::checkHeartbeatTimeout() {
     return 0;
 }
 
-uint32_t ServerState::getCurrentTerm() {
-    return currentTerm;
+void ServerState::serialPrint() {
+    Serial.printf("Server state:\n%-25s%-25s%-25s%-25s\n",
+                  "currentTerm",
+                  "votedFor",
+                  "electionTimeout",
+                  "lastTimeout"
+                  );
+    Serial.printf("%-25lu%-25lu%-25lu%-25lu\n",
+                  currentTerm,
+                  votedFor,
+                  electionTimeout,
+                  lastTimeout
+                  );
 }

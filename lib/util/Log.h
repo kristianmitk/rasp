@@ -1,6 +1,10 @@
 #ifndef Log_h
 #define Log_h
 
+#include <Arduino.h>
+#include <fs.h>
+#include "util.h"
+
 extern "C" {
     #include "stdint.h"
 }
@@ -35,6 +39,22 @@ public:
      * TODO: DOCS
      * [appendEntry description]
      */
-    void appendEntry();
+    void     appendEntry();
+
+    /**
+     * TODO: DOCS
+     * [readEntry description]
+     * @param  index [description]
+     * @return       [description]
+     */
+    LogEntry readEntry(uint32_t index);
+
+    /**
+     * TODO: DOCS
+     * [applyToStateMachine description]
+     * @param  index [description]
+     * @return       [description]
+     */
+    void     applyToStateMachine(uint32_t index);
 };
 #endif // ifndef Log_h

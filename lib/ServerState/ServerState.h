@@ -5,6 +5,7 @@
 #include "Log.h"
 #include "messages.h"
 #include "rasp_nodes.h"
+#include "rasp_fs2.h"
 extern "C" {
     #include <stdint.h>
 }
@@ -15,17 +16,18 @@ enum Role {
     LEADER
 };
 
+/**
+ * TODO: DOCS
+ * TODO: Change to Singleton pattern
+ * [ServerState description]
+ * @param id [description]
+ */
 class ServerState {
 public:
 
     ServerState(uint32_t id);
 
-    /**
-     * TODO: DOCS
-     * [getCurrentTerm description]
-     * @return [description]
-     */
-    uint32_t            getCurrentTerm();
+    void                serialPrint();
 
     /**
      * TODO: DOCS

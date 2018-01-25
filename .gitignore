@@ -1,7 +1,7 @@
 # platformIO
 .pioenvs
 .piolibdeps
-./lib/readme.txt
+lib/readme.txt
 # clang
 .clang_complete
 # gcc

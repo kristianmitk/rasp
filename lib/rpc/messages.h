@@ -1,7 +1,7 @@
 #ifndef messages_h
 
+#include "util.h"
 #define messages_h
-
 extern "C" {
     #include <stdint.h>
 }
@@ -32,7 +32,8 @@ public:
      * [marshall description]
      * @return [description]
      */
-    virtual uint8_t* marshall() = 0;
+    virtual uint8_t* marshall()    = 0;
+    virtual void     serialPrint() = 0;
 };
 
 /**
@@ -57,22 +58,9 @@ public:
     RequestVoteRequest(uint8_t *packet);
     RequestVoteRequest();
 
-    // other fields
-
-    /**
-     * TODO: DOCS
-     * [RequestVoteRequest description]
-     * @param term         [description]
-     * @param candidateID  [description]
-     * @param lastLogIndex [description]
-     * @param lastLogTerm  [description]
-     */
-    RequestVoteRequest(uint32_t term,
-                       uint32_t candidateID,
-                       uint32_t lastLogIndex,
-                       uint32_t lastLogTerm);
 
     uint8_t* marshall();
+    void     serialPrint();
 };
 
 /**
@@ -102,6 +90,7 @@ public:
                         uint8_t  voteGranted);
 
     uint8_t* marshall();
+    void     serialPrint();
 };
 
 /**

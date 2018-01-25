@@ -1,10 +1,20 @@
-ServerState
-    - maintains the current state of the server (role, log etc.)
-    - also handles passed packets from the `UDPServer`. Valid ones are RequestVoteMessage and AppendEntriesMessage
+ServerState - Class
+- maintains the current state of the server (role, log, variables - i.e term... - etc.)
+    - also handles incoming packets forwarded from the UDPServer.
 
-UDPServer
-    - handles incoming packets by parsing them and creating proper corresponding message struct.
-      forwards the message struct to the `ServerState` who than handles the message.
+UDPServer - Class
+- handles incoming and outgoing packets
+    - returns a buffer holding corresponding message
 
-EventTimer (by now prefer the serverState to handle this)
-    - triggers after election timeout the corresponding procedure (change to candidate role and start a new election)
+Log - Class
+- maintains the replicated log
+
+RASPFS - Singleton Class, uses the SPIFF FS
+    Files for ServerState:
+        - `SS/currentTerm`
+        - `SS/votedFor`
+        - `SS/Log`
+            - Holding all LogEntries (one per line)
+    Files for StateMachine:
+        - `SM/*`
+            - whatever data is maintained

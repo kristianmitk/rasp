@@ -1,30 +1,37 @@
 #include <Arduino.h>
 #include "rasp_wifi.h"
-#include "rasp_udp.h"
-#include "ServerState.h"
 #include "messages.h"
-#include "util.h"
+#include "marshall.h"
+#include "UDPServer.h"
+#include "ServerState.h"
+#include <fs.h>
 extern "C" {
-// espressif ESP8266 sdk
     #include "user_interface.h"
-
-// #include "stdlib.h"
 }
 
+// #define INITIAL_SETUP
 #define DEFAULT_BAUD_RATE 115200
 
-UDP_Server   udpServer;
+UDPServer udpServer;
 ServerState *currentState;
 uint8_t     *incomingPacket;
 RequestVoteRequest  reqVoteReqMsg;
 RequestVoteResponse reqVoteResMsg;
 
-
 /* -------------------------- SETUP -------------------------- */
 void setup() {
     Serial.begin(DEFAULT_BAUD_RATE);
+    uint32_t chipID = system_get_chip_id();
+    Serial.printf("\nChip ID:%d\n", chipID);
 
-    Serial.printf("\nChip-ID: %d\n", system_get_chip_id());
+#ifdef INITIAL_SETUP
+
+    Serial.println("\n\n[INFO] Running initial setup");
+    SPIFFS.remove("/SS/currentTerm");
+    RASPFS::getInstance().write(CURRENT_TERM, 0);
+    RASPFS::getInstance().write(VOTED_FOR, 0);
+
+#endif // ifdef INITIAL_SETUP
 
     // setup network connection
     connectToWiFi();
@@ -39,26 +46,24 @@ void setup() {
     randomSeed(analogRead(0));
 
     // TODO: do we need a Constructor?
-    currentState = new ServerState(system_get_chip_id());
+    currentState = new ServerState(chipID);
 }
 
 /* -------------------------- LOOP -------------------------- */
 void loop() {
-    if ((currentState->getRole() == LEADER) &&
-        currentState->checkHeartbeatTimeout()) {
+    if (currentState->checkHeartbeatTimeout()) {
+        // TODO: broadcast empty heartbeat
         udpServer.broadcastHeartbeat();
     }
 
-    if ((currentState->getRole() != LEADER) &&
-        (reqVoteReqMsg = currentState->checkElectionTimeout())) {
+    if ((reqVoteReqMsg = currentState->checkElectionTimeout())) {
         udpServer.broadcastRequestVoteRPC(reqVoteReqMsg.marshall());
     }
 
     if (incomingPacket = udpServer.checkForIncomingPacket()) {
-        // TODO: little endian or big endian?
         uint32_t type = unpack_uint32_t(incomingPacket, 0);
 
-        Serial.printf("type is : %lu\n", type);
+        // Serial.printf("type is : %lu\n", type);
 
         switch (type) {
         case RequestVoteReq:
@@ -92,5 +97,6 @@ void loop() {
     } else {
         // TODO: handle stuff when no packet is incoming:
         //  - check for timeouts and resend packets
+        //  - appendEntriesRPC
     }
 }
