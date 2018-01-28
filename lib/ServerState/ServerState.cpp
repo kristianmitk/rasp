@@ -46,6 +46,7 @@ RequestVoteResponse ServerState::handleRequestVoteReq(uint32_t term,
             role            = FOLLOWER;
             currentTerm     = term;
             votedFor        = candidateID;
+            res.term        = term;
             res.voteGranted = true;
         }
     }
@@ -68,7 +69,7 @@ void ServerState::handleRequestVoteRes(uint32_t term, uint8_t  voteGranted) {
 
     if (this->role == CANDIDATE) {
         // make sure not to count obsolete responses
-        if (voteGranted && (term <= this->currentTerm)) {
+        if (voteGranted && (term == this->currentTerm)) {
             this->receivedVotes++;
             checkGrantedVotes();
             return;
@@ -121,6 +122,8 @@ void ServerState::checkGrantedVotes() {
 
     if (REQUIRED_VOTES <= receivedVotes) {
         Serial.printf("ELECTED LEADER!\n", receivedVotes);
+
+        // TODO: set nextIndex/matchIndex for all followes
         role             = LEADER;
         heartbeatTimeout = random(100, 150);
         lastTimeout      = millis();
