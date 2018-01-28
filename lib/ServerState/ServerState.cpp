@@ -33,14 +33,14 @@ RequestVoteResponse ServerState::handleRequestVoteReq(uint32_t term,
     res.voteGranted = false;
 
     // our state is more up to date than the candidate state
-    if ((term < currentTerm) || (lastLogTerm < log->latestTerm)) {
+    if ((term < currentTerm) || (lastLogTerm < log->lastStoredTerm())) {
         Serial.println("VoteGranted = false");
         return res;
     }
 
     if (!votedFor || candidateID) {
-        if ((lastLogTerm > log->latestTerm) ||
-            (lastLogIndex >= log->latestIndex)) {
+        if ((lastLogTerm > log->lastStoredTerm()) ||
+            (lastLogIndex >= log->size())) {
             Serial.println("VoteGranted = true");
 
             role            = FOLLOWER;
@@ -108,8 +108,8 @@ RequestVoteRequest ServerState::checkElectionTimeout() {
         votedFor         = RASPFS::getInstance().write(VOTED_FOR, selfID);
         msg.term         = this->currentTerm;
         msg.candidateID  = this->selfID;
-        msg.lastLogIndex = this->log->latestIndex;
-        msg.lastLogTerm  = this->log->latestTerm;
+        msg.lastLogIndex = this->log->size();
+        msg.lastLogTerm  = this->log->lastStoredTerm();
 
         resetElectionTimeout();
     }

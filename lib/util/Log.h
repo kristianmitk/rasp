@@ -2,7 +2,7 @@
 #define Log_h
 
 #include <Arduino.h>
-#include <fs.h>
+#include "rasp_fs2.h"
 #include "util.h"
 
 extern "C" {
@@ -24,22 +24,18 @@ public:
      * [Log description]
      */
     Log() {
-        // TODO: constructor should read from disk first and set proper values
-        latestIndex = 0;
-        latestTerm  = 0;
+        // TODO: constructor should read from disk and set proper values
+        nextEntry  = 0;
+        latestTerm = 0;
     }
-
-    uint32_t latestIndex;
-    uint32_t latestTerm;
-
-    // TODO: solve fixed array size - maybe use std::vector ?!
-    LogEntry entries[LOG_SIZE];
 
     /**
      * TODO: DOCS
-     * [appendEntry description]
+     * [append description]
+     * @param  newEntry [description]
+     * @return          [description]
      */
-    void     appendEntry();
+    void     append(LogEntry newEntry);
 
     /**
      * TODO: DOCS
@@ -47,7 +43,7 @@ public:
      * @param  index [description]
      * @return       [description]
      */
-    LogEntry readEntry(uint32_t index);
+    LogEntry read(uint32_t index);
 
     /**
      * TODO: DOCS
@@ -56,5 +52,27 @@ public:
      * @return       [description]
      */
     void     applyToStateMachine(uint32_t index);
+
+    /**
+     * TODO: DOCS
+     * [size description]
+     * @return [description]
+     */
+    size_t   size();
+
+    /**
+     * TODO: DOCS
+     * [lastTerm description]
+     * @return [description]
+     */
+    uint32_t lastStoredTerm();
+
+private:
+
+    uint32_t nextEntry;
+    uint32_t latestTerm;
+
+    // TODO: solve fixed array size - maybe use std::vector ?!
+    LogEntry entries[LOG_SIZE];
 };
 #endif // ifndef Log_h

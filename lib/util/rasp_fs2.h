@@ -4,7 +4,6 @@
 #include <fs.h>
 #include "marshall.h"
 
-
 enum RASP_File {
     CURRENT_TERM = 0,
     VOTED_FOR    = 1,
@@ -58,7 +57,7 @@ public:
      * @param  data [description]
      * @return      [description]
      */
-    uint32_t write(RASP_File f, uint32_t data) {
+    uint32_t write(uint8_t f, uint32_t data) {
         return write_uint32_t(FILE_NAME[f], data);
     }
 
@@ -68,8 +67,22 @@ public:
      * @param  f [description]
      * @return   [description]
      */
-    uint32_t read(RASP_File f) {
+    uint32_t read(uint8_t f) {
         return read_uint32_t(FILE_NAME[f]);
+    }
+
+    /**
+     * TODO: DOCS
+     * [appendString description]
+     * @param  name   [description]
+     * @param  string [description]
+     * @return        [description]
+     */
+    size_t appendString(RASP_File name = LOG, const char *string = NULL) {
+        File f = SPIFFS.open(FILE_NAME[name], "a");
+
+        f.write((uint8_t *)string, strlen(string));
+        f.close();
     }
 
 private:
@@ -90,6 +103,12 @@ private:
         return data;
     }
 
+    /**
+     * TODO: DOCS
+     * [read_uint32_t description]
+     * @param  filename [description]
+     * @return          [description]
+     */
     uint32_t read_uint32_t(const char *filename) {
         char buf[4];
         File f = SPIFFS.open(filename, "r");

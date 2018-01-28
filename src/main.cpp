@@ -1,20 +1,23 @@
 #include <Arduino.h>
+
 #include "rasp_wifi.h"
 #include "messages.h"
 #include "marshall.h"
 #include "UDPServer.h"
 #include "ServerState.h"
-#include <fs.h>
+#include "SerialInHandler.h"
+
 extern "C" {
     #include "user_interface.h"
 }
 
-// #define INITIAL_SETUP
+#define INITIAL_SETUP
 #define DEFAULT_BAUD_RATE 115200
 
 UDPServer udpServer;
-ServerState *currentState;
-uint8_t     *incomingPacket;
+SerialInHandler serialInHandler;
+ServerState    *currentState;
+uint8_t *incomingPacket;
 RequestVoteRequest  reqVoteReqMsg;
 RequestVoteResponse reqVoteResMsg;
 
@@ -27,7 +30,6 @@ void setup() {
 #ifdef INITIAL_SETUP
 
     Serial.println("\n\n[INFO] Running initial setup");
-    SPIFFS.remove("/SS/currentTerm");
     RASPFS::getInstance().write(CURRENT_TERM, 0);
     RASPFS::getInstance().write(VOTED_FOR, 0);
 
@@ -52,7 +54,6 @@ void setup() {
 /* -------------------------- LOOP -------------------------- */
 void loop() {
     if (currentState->checkHeartbeatTimeout()) {
-        // TODO: broadcast empty heartbeat
         udpServer.broadcastHeartbeat();
     }
 
@@ -67,7 +68,6 @@ void loop() {
 
         switch (type) {
         case RequestVoteReq:
-
             reqVoteReqMsg = RequestVoteRequest(incomingPacket);
             udpServer.sendPacket(currentState->handleRequestVoteReq(
                                      reqVoteReqMsg).marshall(),
@@ -76,7 +76,6 @@ void loop() {
             break;
 
         case RequestVoteRes:
-
             reqVoteResMsg = RequestVoteResponse(incomingPacket);
             currentState->handleRequestVoteRes(reqVoteResMsg);
 
@@ -94,9 +93,11 @@ void loop() {
             // TODO: implement
             break;
         }
-    } else {
-        // TODO: handle stuff when no packet is incoming:
-        //  - check for timeouts and resend packets
-        //  - appendEntriesRPC
+        return;
     }
+
+    // TODO: handle stuff when no packet is incoming:
+    //  - check for timeouts and resend packets
+    //  - appendEntriesRPC
+    serialInHandler.read();
 }
