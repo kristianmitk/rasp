@@ -32,6 +32,7 @@ void setup() {
     Serial.println("\n\n[INFO] Running initial setup");
     RASPFS::getInstance().write(CURRENT_TERM, 0);
     RASPFS::getInstance().write(VOTED_FOR, 0);
+    RASPFS::getInstance().remove(LOG);
 
 #endif // ifdef INITIAL_SETUP
 
@@ -53,6 +54,8 @@ void setup() {
 
 /* -------------------------- LOOP -------------------------- */
 void loop() {
+    currentState->DEBUG_APPEND_LOG();
+
     if (currentState->checkHeartbeatTimeout()) {
         udpServer.broadcastHeartbeat();
     }

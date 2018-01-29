@@ -9,12 +9,8 @@ extern "C" {
     #include "stdint.h"
 }
 
-#define LOG_SIZE 1024
-
-typedef struct LogEntry {
-    uint32_t term;
-    uint8_t *command;
-} LogEntry;
+#define LOG_DATA_SIZE 128
+#define LOG_LENGTH 256
 
 class Log {
 public:
@@ -35,7 +31,7 @@ public:
      * @param  newEntry [description]
      * @return          [description]
      */
-    void     append(LogEntry newEntry);
+    void       append(logEntry_t newEntry);
 
     /**
      * TODO: DOCS
@@ -43,7 +39,7 @@ public:
      * @param  index [description]
      * @return       [description]
      */
-    LogEntry read(uint32_t index);
+    logEntry_t read(uint32_t index);
 
     /**
      * TODO: DOCS
@@ -51,28 +47,37 @@ public:
      * @param  index [description]
      * @return       [description]
      */
-    void     applyToStateMachine(uint32_t index);
+    void       applyToStateMachine(uint32_t index);
 
     /**
      * TODO: DOCS
      * [size description]
      * @return [description]
      */
-    size_t   size();
+    size_t     size();
 
     /**
      * TODO: DOCS
      * [lastTerm description]
      * @return [description]
      */
-    uint32_t lastStoredTerm();
+    uint32_t   lastStoredTerm();
+
+    /**
+     * TODO: DOCS
+     * [printLastEntry description]
+     * @return [description]
+     */
+    void       printLastEntry();
+
+    logEntry_t lastEntry();
 
 private:
 
-    uint32_t nextEntry;
+    uint8_t nextEntry;
     uint32_t latestTerm;
 
     // TODO: solve fixed array size - maybe use std::vector ?!
-    LogEntry entries[LOG_SIZE];
+    logEntry_t entries[LOG_LENGTH];
 };
 #endif // ifndef Log_h

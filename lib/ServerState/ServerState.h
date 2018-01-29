@@ -104,6 +104,9 @@ public:
      */
     uint8_t checkHeartbeatTimeout();
 
+
+    void    DEBUG_APPEND_LOG();
+
 private:
 
     /**

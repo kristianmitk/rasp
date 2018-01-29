@@ -8,7 +8,7 @@
 #include "marshall.h"
 
 // TODO: outsource constants
-#define UDP_INCOMING_BUFFER_SIZE 2048
+#define UDP_INCOMING_BUFFER_SIZE 2048 // TODO: SET TO MAX PACKET SIZE
 #define UDP_PORT 1337
 
 IPAddress sender;

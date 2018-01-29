@@ -3,6 +3,9 @@
 #include <Arduino.h>
 #include <fs.h>
 #include "marshall.h"
+#include "util.h"
+
+#define LOGENTRY_SIZE 132
 
 enum RASP_File {
     CURRENT_TERM = 0,
@@ -85,6 +88,27 @@ public:
         f.close();
     }
 
+    /**
+     * TODO: DOCS
+     * [appendLogEntry description]
+     * @param  newEntry [description]
+     * @return          [description]
+     */
+    size_t appendLogEntry(logEntry_t newEntry) {
+        serializeLogEntry(newEntry);
+        File f = SPIFFS.open(FILE_NAME[LOG], "a");
+
+        f.write(this->serializeBuffer, LOGENTRY_SIZE);
+        Serial.printf("New file size is: %lu\n",
+                      f.size());
+        f.close();
+        return LOGENTRY_SIZE;
+    }
+
+    size_t remove(RASP_File f) {
+        return SPIFFS.remove(FILE_NAME[f]);
+    }
+
 private:
 
     /**
@@ -120,6 +144,58 @@ private:
 
     /**
      * TODO: DOCS
+     * [serialize description]
+     * @param  t [description]
+     * @return   [description]
+     */
+    template<typename T>
+    uint8_t* serialize(const T& t) {
+        uint8_t *buffer[sizeof(t)];
+
+        memcpy(buffer, t, sizeof(t));
+        return buffer;
+    }
+
+    /**
+     * TODO: DOCS
+     * [serializeLogEntry description]
+     * @param  logEntry [description]
+     * @param  buffer   [description]
+     * @return          [description]
+     */
+    uint8_t* serializeLogEntry(logEntry_t logEntry) {
+        clearBuffer();
+        uint32_t *p32 = (uint32_t *)serializeBuffer;
+
+        *p32 = logEntry.term;
+        p32++;
+
+        uint8_t *p8 = (uint8_t *)p32;
+        int i       = 0;
+
+        while (i < LOG_DATA_SIZE) {
+            *p8 = logEntry.data[i];
+            p8++;
+            i++;
+        }
+    }
+
+    // /**
+    //  * TODO: DOCS
+    //  * [deserialize description]
+    //  * @param  buf [description]
+    //  * @return     [description]
+    //  */
+    // template<typename T>
+    // const T& deserialize(const uint8_t buf) {
+    //     T t;
+    //
+    //     memcpy(t, buf, sizeof(t));
+    //     return t;
+    // }
+
+    /**
+     * TODO: DOCS
      * [RASPFS description]
      */
     RASPFS() {
@@ -138,6 +214,12 @@ private:
         "/SS/votedFor",
         "/SS/log"
     };
+
+    void clearBuffer() {
+        memset(serializeBuffer, 0, LOG_DATA_SIZE);
+    }
+
+    uint8_t serializeBuffer[132];
 };
 
 #endif // ifndef rasp_fs_h

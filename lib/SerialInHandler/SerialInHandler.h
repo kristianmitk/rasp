@@ -16,10 +16,10 @@ public:
             incomingByte = Serial.read();
 
             if (incomingByte == '\n') {
-                parseInput();
-            } else {
-                if (incomingByte != '\r') command += incomingByte;
+                return parseInput();
             }
+
+            if (incomingByte != '\r') command += incomingByte;
         }
     }
 

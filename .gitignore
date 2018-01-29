@@ -8,3 +8,5 @@ lib/readme.txt
 .gcc-flags.json
 # mac
 .DS_STORE
+# other
+notes/

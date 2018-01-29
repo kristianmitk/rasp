@@ -1,16 +1,14 @@
 #include "Log.h"
 
 
-void Log::append(LogEntry newEntry) {
-    if (nextEntry == LOG_SIZE) {
+void Log::append(logEntry_t newEntry) {
+    if (nextEntry == LOG_LENGTH) {
         Serial.printf("[ERR] LOG IS FULL! Appending entry not possible");
         return;
     }
     entries[nextEntry] = newEntry;
     nextEntry++;
-
-    // TODO: append serialized logEntry
-    // RASPFS::getInstance().appendString(LOG, (char *)newEntry.command);
+    RASPFS::getInstance().appendLogEntry(newEntry);
 }
 
 size_t Log::size() {
@@ -21,6 +19,21 @@ uint32_t Log::lastStoredTerm() {
     return this->latestTerm;
 }
 
-LogEntry Log::read(uint32_t index) {
-    return entries[abs(index) % LOG_SIZE];
+logEntry_t Log::read(uint32_t index) {
+    return entries[abs(index) % LOG_LENGTH];
+}
+
+logEntry_t Log::lastEntry() {
+    uint8_t index = this->nextEntry;
+
+    return read(index == 0 ? 0 : index - 1);
+}
+
+void Log::printLastEntry() {
+    logEntry_t last = lastEntry();
+
+    Serial.printf("LOG index: %d\nTerm:%lu, Val: %d\n",
+                  this->nextEntry,
+                  last.term,
+                  unpack_uint8_t(last.data, 0));
 }

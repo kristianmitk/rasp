@@ -2,8 +2,8 @@
 #include "util.h"
 
 // TODO: outsource boundaries to a config file
-#define MIN_ELECTION_TIMEOUT 150
-#define MAX_ELECTION_TIMEOUT 300
+#define MIN_ELECTION_TIMEOUT 250
+#define MAX_ELECTION_TIMEOUT 600
 #define generateTimeout() random(MIN_ELECTION_TIMEOUT, MAX_ELECTION_TIMEOUT)
 
 #define REQUIRED_VOTES (RASP_NUM_SERVERS / 2 + 1)
@@ -23,12 +23,14 @@ ServerState::ServerState(uint32_t id) {
     this->serialPrint();
 }
 
+// TODO: set persistent values
 RequestVoteResponse ServerState::handleRequestVoteReq(uint32_t term,
                                                       uint32_t candidateID,
                                                       uint32_t lastLogIndex,
                                                       uint32_t lastLogTerm) {
     RequestVoteResponse res;
 
+    currentTerm     = max(currentTerm, term);
     res.term        = currentTerm;
     res.voteGranted = false;
 
@@ -38,20 +40,25 @@ RequestVoteResponse ServerState::handleRequestVoteReq(uint32_t term,
         return res;
     }
 
-    if (!votedFor || candidateID) {
+    if (!this->votedFor ||
+        (this->votedFor != selfID) ||
+        ((this->votedFor == selfID) && (this->role != CANDIDATE))) {
         if ((lastLogTerm > log->lastStoredTerm()) ||
             (lastLogIndex >= log->size())) {
             Serial.println("VoteGranted = true");
 
             role            = FOLLOWER;
-            currentTerm     = term;
             votedFor        = candidateID;
             res.term        = term;
             res.voteGranted = true;
-        }
-    }
 
-    resetElectionTimeout();
+            resetElectionTimeout();
+        }
+    } else {
+        Serial.printf("Self candidate? %d\n",
+                      ((this->votedFor == selfID) && (this->role == CANDIDATE)));
+        Serial.println("VoteGranted = false - 2nd condition");
+    }
 
     return res;
 }
@@ -65,14 +72,21 @@ RequestVoteResponse ServerState::handleRequestVoteReq(RequestVoteRequest msg) {
 }
 
 void ServerState::handleRequestVoteRes(uint32_t term, uint8_t  voteGranted) {
-    Serial.printf("\n\nROLE: %d", this->role);
+    Serial.printf("\n\nwithin `handleRequestVoteRes` - ROLE: %d\n", this->role);
 
     if (this->role == CANDIDATE) {
         // make sure not to count obsolete responses
-        if (voteGranted && (term == this->currentTerm)) {
-            this->receivedVotes++;
-            checkGrantedVotes();
-            return;
+        if (voteGranted) {
+            if (term == this->currentTerm) {
+                this->receivedVotes++;
+                checkGrantedVotes();
+                return;
+            } else {
+                // TODO: remove debug logging
+                Serial.printf("TERMS; own:%lu, received: %lu\n",
+                              this->currentTerm,
+                              term);
+            }
         }
 
         if (this->currentTerm < term) {
@@ -159,6 +173,28 @@ uint8_t ServerState::checkHeartbeatTimeout() {
         return 1;
     }
     return 0;
+}
+
+void ServerState::DEBUG_APPEND_LOG() {
+    if (this->role == LEADER) {
+        uint32_t rnd = random(1, 1000000);
+
+        if (rnd > 999990) {
+            Serial.printf("\n%luy",        rnd);
+            Serial.printf("Before: %lu\n", millis());
+            logEntry_t newEntry;
+            newEntry.term = this->currentTerm;
+
+            if (random(1, 100) > 50) {
+                newEntry.data[0] = 1;
+            } else {
+                newEntry.data[0] = 0;
+            }
+            this->log->append(newEntry);
+            this->log->printLastEntry();
+            Serial.printf("After: %lu\n", millis());
+        }
+    }
 }
 
 void ServerState::serialPrint() {
