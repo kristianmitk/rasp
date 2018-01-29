@@ -59,8 +59,8 @@ public:
     RequestVoteRequest();
 
 
-    uint8_t* marshall();
-    void     serialPrint();
+    virtual uint8_t* marshall();
+    virtual void     serialPrint();
 };
 
 /**
@@ -89,8 +89,8 @@ public:
     RequestVoteResponse(uint32_t term,
                         uint8_t  voteGranted);
 
-    uint8_t* marshall();
-    void     serialPrint();
+    virtual uint8_t* marshall();
+    virtual void     serialPrint();
 };
 
 /**

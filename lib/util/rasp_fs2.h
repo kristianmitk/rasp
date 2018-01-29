@@ -105,6 +105,12 @@ public:
         return LOGENTRY_SIZE;
     }
 
+    /**
+     * TODO: DOCS
+     * [remove description]
+     * @param  f [description]
+     * @return   [description]
+     */
     size_t remove(RASP_File f) {
         return SPIFFS.remove(FILE_NAME[f]);
     }
@@ -165,11 +171,14 @@ private:
      */
     uint8_t* serializeLogEntry(logEntry_t logEntry) {
         clearBuffer();
+
+        // serialize the logEntry term
         uint32_t *p32 = (uint32_t *)serializeBuffer;
 
         *p32 = logEntry.term;
         p32++;
 
+        // serialize the log entry data buffer
         uint8_t *p8 = (uint8_t *)p32;
         int i       = 0;
 

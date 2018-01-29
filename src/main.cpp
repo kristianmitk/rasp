@@ -69,6 +69,8 @@ void loop() {
 
         // Serial.printf("type is : %lu\n", type);
 
+        // TODO: is there a cleaner solution to somehow avoid a switch case on
+        // the messagetype?
         switch (type) {
         case RequestVoteReq:
             reqVoteReqMsg = RequestVoteRequest(incomingPacket);
