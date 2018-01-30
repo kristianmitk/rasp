@@ -10,6 +10,7 @@
  */
 
 RequestVoteRequest::RequestVoteRequest() {
+    this->type        = Message::RequestVoteReq;
     this->candidateID = 0;
 }
 
@@ -25,7 +26,7 @@ RequestVoteRequest::RequestVoteRequest(uint8_t *packet) {
 uint8_t * RequestVoteRequest::marshall() {
     uint8_t *buffer = new uint8_t[REQ_VOTE_REQ_MSG_SIZE];
 
-    pack_uint8_t(buffer, 0, this->type);
+    pack_uint8_t(buffer, 0, Message::RequestVoteReq);
 
     pack_uint32_t(buffer, PACKET_BODY_OFFSET,      this->term);
     pack_uint32_t(buffer, PACKET_BODY_OFFSET + 4,  this->candidateID);
@@ -54,9 +55,12 @@ void RequestVoteRequest::serialPrint() {
  */
 
 
-RequestVoteResponse::RequestVoteResponse() {}
+RequestVoteResponse::RequestVoteResponse() {
+    this->type = Message::RequestVoteRes;
+}
 
 RequestVoteResponse::RequestVoteResponse(uint8_t *packet) {
+    this->type        = Message::RequestVoteRes;
     this->term        = unpack_uint32_t(packet, PACKET_BODY_OFFSET);
     this->voteGranted = unpack_uint8_t(packet, PACKET_BODY_OFFSET + 4);
 }
@@ -79,4 +83,21 @@ void RequestVoteResponse::serialPrint() {
                   this->term,
                   this->voteGranted
                   );
+}
+
+Message* a(uint8_t *packet) {
+    rvReq = RequestVoteRequest(packet);
+    return &rvReq;
+}
+
+Message* b(uint8_t *packet) {
+    rvRes = RequestVoteResponse(packet);
+    return &rvReq;
+}
+
+Message * (*messageExtractors[2])(uint8_t * packet) = { a, b };
+
+Message* createMessage(uint8_t *packet) {
+    Serial.printf("\n\n%d\n", unpack_uint8_t(packet, 0));
+    return messageExtractors[unpack_uint8_t(packet, 0)](packet);
 }

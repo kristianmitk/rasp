@@ -7,8 +7,8 @@ extern "C" {
     #include <stdint.h>
 }
 
-#define REQ_VOTE_REQ_MSG_SIZE 20
-#define REQ_VOTE_RES_MSG_SIZE 9
+#define REQ_VOTE_REQ_MSG_SIZE 17
+#define REQ_VOTE_RES_MSG_SIZE 6
 
 /**
  * This enum is used to identify the message. Every incoming packet
@@ -114,6 +114,8 @@ class AppendEntriesResponse : public Message {
     virtual void     serialPrint();
 };
 
+// TODO: DOCUMENT WHATS GOING ON HERE - TOO LATE NOW ':D
+
 
 static RequestVoteRequest  rvReq;
 static RequestVoteResponse rvRes;
@@ -121,20 +123,11 @@ static RequestVoteResponse rvRes;
 // AppendEntriesRequest aeReq;
 // AppendEntriesResponse aeRes;
 
-Message* a(uint8_t *packet) {
-    rvReq = RequestVoteRequest(packet);
-    return &rvReq;
-}
 
-Message* b(uint8_t *packet) {
-    rvRes = RequestVoteResponse(packet);
-    return &rvReq;
-}
+Message* a(uint8_t *packet); // TODO: rename function names
 
-Message * (*messageExtractors[2])(uint8_t * packet) = { a, b };
+Message* b(uint8_t *packet); // TODO: rename function names
 
-Message* createMessage(uint8_t *packet) {
-    return messageExtractors[unpack_uint32_t(packet, 0)](packet);
-}
+Message* createMessage(uint8_t *packet);
 
 #endif // ifndef messages_h

@@ -50,8 +50,6 @@ Message * ServerState::handleRequestVoteReq(uint32_t term,
                                             uint32_t candidateID,
                                             uint32_t lastLogIndex,
                                             uint32_t lastLogTerm) {
-    RequestVoteResponse res;
-
     currentTerm       = max(currentTerm, term);
     rvRes.term        = currentTerm;
     rvRes.voteGranted = false;
@@ -129,9 +127,9 @@ void ServerState::handleRequestVoteRes(Message *msg) {
 }
 
 Message * ServerState::checkElectionTimeout() {
-    rvReq = RequestVoteRequest();
+    if (this->role == LEADER) return NULL;
 
-    if (this->role == LEADER) return &rvReq;
+    rvReq = RequestVoteRequest();
 
     if (millis() > lastTimeout + electionTimeout) {
         Serial.printf("\n[WARN] Election timout. Starting a new election\n");
@@ -153,8 +151,9 @@ Message * ServerState::checkElectionTimeout() {
         rvReq.lastLogTerm  = this->log->lastStoredTerm();
 
         resetElectionTimeout();
+        return &rvReq;
     }
-    return &rvReq;
+    return NULL;
 }
 
 void ServerState::checkGrantedVotes() {

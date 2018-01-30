@@ -38,7 +38,7 @@ public:
      * TODO: DOCS
      * [checkForPacket description]
      */
-    uint8_t* checkForIncomingPacket();
+    uint8_t* checkForPacket();
 
     /**
      * TODO: DOCS

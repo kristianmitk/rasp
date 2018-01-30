@@ -53,6 +53,7 @@ void setup() {
 
 /* -------------------------- LOOP -------------------------- */
 void loop() {
+    msg = NULL;
     currentState->DEBUG_APPEND_LOG();
 
     if (currentState->checkHeartbeatTimeout()) {
@@ -65,6 +66,11 @@ void loop() {
 
     if (msg = udpServer.checkForMessage()) {
         Message *res = currentState->dispatch(msg);
+
+        if (res) {
+            res->serialPrint();
+            udpServer.sendPacket(res->marshall(), REQ_VOTE_RES_MSG_SIZE);
+        }
 
         // TODO: is there a cleaner solution to somehow avoid a switch case on
         // the messagetype?

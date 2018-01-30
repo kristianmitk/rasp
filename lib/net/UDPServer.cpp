@@ -6,15 +6,11 @@ void UDPServer::start() {
 }
 
 void UDPServer::broadcastRequestVoteRPC(uint8_t *message) {
-    RequestVoteRequest *req = new RequestVoteRequest(message);
-
     for (int i = 0; i < RASP_NUM_SERVERS; i++) {
         Udp.beginPacket(servers[i].IP, RASP_DEFAULT_PORT);
         Udp.write((char *)message, REQ_VOTE_REQ_MSG_SIZE);
         Udp.endPacket();
     }
-
-    // free the message buffer after all messages are sent
     free(message);
 }
 
@@ -40,6 +36,7 @@ void UDPServer::sendPacket(uint8_t *buffer, size_t size) {
     Udp.beginPacket(sender, RASP_DEFAULT_PORT);
     Udp.write((char *)buffer, size);
     Udp.endPacket();
+    free(buffer);
 }
 
 size_t UDPServer::parse() {
@@ -60,7 +57,7 @@ size_t UDPServer::parse() {
     return packetSize;
 }
 
-uint8_t * UDPServer::checkForIncomingPacket() {
+uint8_t * UDPServer::checkForPacket() {
     return this->parse() ? packetBuffer : NULL;
 }
 
