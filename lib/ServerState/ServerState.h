@@ -25,16 +25,37 @@ enum Role {
 class ServerState {
 public:
 
+    /**
+     * TODO: DOCS
+     * [ServerState description]
+     * @param id [description]
+     */
     ServerState(uint32_t id);
 
-    void                serialPrint();
+    /**
+     * TODO: DOCS
+     * [serialPrint description]
+     * @return [description]
+     */
+    void serialPrint();
+
+
+    /**
+     * TODO: DOCS
+     * [dispatch description]
+     * @param  msg [description]
+     * @return     [description]
+     */
+    Message* dispatch(Message *msg);
+
 
     /**
      * TODO: DOCS
      * [checkElectionTimeout description]
      * @return [description]
      */
-    RequestVoteRequest  checkElectionTimeout();
+    Message* checkElectionTimeout();
+
 
     /**
      * TODO: DOCS
@@ -45,10 +66,10 @@ public:
      * @param  lastLogTerm  [description]
      * @return              [description]
      */
-    RequestVoteResponse handleRequestVoteReq(uint32_t term,
-                                             uint32_t scandidateID,
-                                             uint32_t lastLogIndex,
-                                             uint32_t lastLogTerm);
+    Message* handleRequestVoteReq(uint32_t term,
+                                  uint32_t scandidateID,
+                                  uint32_t lastLogIndex,
+                                  uint32_t lastLogTerm);
 
     /**
      * TODO: DOCS
@@ -56,7 +77,7 @@ public:
      * @param  message [description]
      * @return         [description]
      */
-    RequestVoteResponse handleRequestVoteReq(RequestVoteRequest message);
+    Message* handleRequestVoteReq(Message *message);
 
     /**
      * TODO: DOCS
@@ -65,8 +86,8 @@ public:
      * @param  voteGranted [description]
      * @return             [description]
      */
-    void                handleRequestVoteRes(uint32_t term,
-                                             uint8_t  voteGranted);
+    void     handleRequestVoteRes(uint32_t term,
+                                  uint8_t  voteGranted);
 
     /**
      * TODO: DOCS
@@ -74,7 +95,7 @@ public:
      * @param  msg [description]
      * @return     [description]
      */
-    void handleRequestVoteRes(RequestVoteResponse msg);
+    void handleRequestVoteRes(Message *msg);
 
     /**
      * TODO: DOCS

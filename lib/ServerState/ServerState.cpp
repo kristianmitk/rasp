@@ -11,8 +11,8 @@
 ServerState::ServerState(uint32_t id) {
     selfID          = id;
     receivedVotes   = 0;
-    currentTerm     = RASPFS::getInstance().read(CURRENT_TERM);
-    votedFor        = RASPFS::getInstance().read(VOTED_FOR);
+    currentTerm     = RASPFS::getInstance().read(RASPFS::CURRENT_TERM);
+    votedFor        = RASPFS::getInstance().read(RASPFS::VOTED_FOR);
     commitIndex     = 0;
     lastApplied     = 0;
     log             = new Log();
@@ -23,21 +23,43 @@ ServerState::ServerState(uint32_t id) {
     this->serialPrint();
 }
 
+Message * ServerState::dispatch(Message *msg) {
+    switch (msg->type) {
+    case Message::RequestVoteReq:
+        return handleRequestVoteReq(msg);
+
+    case Message::RequestVoteRes:
+        handleRequestVoteRes(msg);
+        return NULL;
+
+    case Message::AppendEntriesReq:
+        Serial.println("<3");
+        resetElectionTimeout(1);
+        return NULL;
+
+    case Message::AppendEntriesRes:
+
+        // TODO: implement
+        break;
+    }
+    return NULL;
+}
+
 // TODO: set persistent values
-RequestVoteResponse ServerState::handleRequestVoteReq(uint32_t term,
-                                                      uint32_t candidateID,
-                                                      uint32_t lastLogIndex,
-                                                      uint32_t lastLogTerm) {
+Message * ServerState::handleRequestVoteReq(uint32_t term,
+                                            uint32_t candidateID,
+                                            uint32_t lastLogIndex,
+                                            uint32_t lastLogTerm) {
     RequestVoteResponse res;
 
-    currentTerm     = max(currentTerm, term);
-    res.term        = currentTerm;
-    res.voteGranted = false;
+    currentTerm       = max(currentTerm, term);
+    rvRes.term        = currentTerm;
+    rvRes.voteGranted = false;
 
     // our state is more up to date than the candidate state
     if ((term < currentTerm) || (lastLogTerm < log->lastStoredTerm())) {
         Serial.println("VoteGranted = false");
-        return res;
+        return &rvRes;
     }
 
     if (!this->votedFor ||
@@ -47,10 +69,10 @@ RequestVoteResponse ServerState::handleRequestVoteReq(uint32_t term,
             (lastLogIndex >= log->size())) {
             Serial.println("VoteGranted = true");
 
-            role            = FOLLOWER;
-            votedFor        = candidateID;
-            res.term        = term;
-            res.voteGranted = true;
+            role              = FOLLOWER;
+            votedFor          = candidateID;
+            rvRes.term        = term;
+            rvRes.voteGranted = true;
 
             resetElectionTimeout();
         }
@@ -60,15 +82,17 @@ RequestVoteResponse ServerState::handleRequestVoteReq(uint32_t term,
         Serial.println("VoteGranted = false - 2nd condition");
     }
 
-    return res;
+    return &rvRes;
 }
 
-RequestVoteResponse ServerState::handleRequestVoteReq(RequestVoteRequest msg) {
-    msg.serialPrint();
-    return handleRequestVoteReq(msg.term,
-                                msg.candidateID,
-                                msg.lastLogIndex,
-                                msg.lastLogTerm);
+Message * ServerState::handleRequestVoteReq(Message *msg) {
+    RequestVoteRequest *p = (RequestVoteRequest *)msg;
+
+    p->serialPrint();
+    return handleRequestVoteReq(p->term,
+                                p->candidateID,
+                                p->lastLogIndex,
+                                p->lastLogTerm);
 }
 
 void ServerState::handleRequestVoteRes(uint32_t term, uint8_t  voteGranted) {
@@ -96,16 +120,18 @@ void ServerState::handleRequestVoteRes(uint32_t term, uint8_t  voteGranted) {
     }
 }
 
-void ServerState::handleRequestVoteRes(RequestVoteResponse msg) {
-    msg.serialPrint();
-    return handleRequestVoteRes(msg.term,
-                                msg.voteGranted);
+void ServerState::handleRequestVoteRes(Message *msg) {
+    RequestVoteResponse *p = (RequestVoteResponse *)msg;
+
+    p->serialPrint();
+    return handleRequestVoteRes(p->term,
+                                p->voteGranted);
 }
 
-RequestVoteRequest ServerState::checkElectionTimeout() {
-    RequestVoteRequest msg;
+Message * ServerState::checkElectionTimeout() {
+    rvReq = RequestVoteRequest();
 
-    if (this->role == LEADER) return msg;
+    if (this->role == LEADER) return &rvReq;
 
     if (millis() > lastTimeout + electionTimeout) {
         Serial.printf("\n[WARN] Election timout. Starting a new election\n");
@@ -113,21 +139,22 @@ RequestVoteRequest ServerState::checkElectionTimeout() {
 
         // Serial.printf("\nBEFORE:%lu\n", millis());
 
-        RASPFS::getInstance().write(CURRENT_TERM, ++this->currentTerm);
+        RASPFS::getInstance().write(RASPFS::CURRENT_TERM, ++this->currentTerm);
 
         // Serial.printf("\nAFTER:%lu\n", millis());
 
         // starting a new election always results in first voting for itself
-        receivedVotes    = 1;
-        votedFor         = RASPFS::getInstance().write(VOTED_FOR, selfID);
-        msg.term         = this->currentTerm;
-        msg.candidateID  = this->selfID;
-        msg.lastLogIndex = this->log->size();
-        msg.lastLogTerm  = this->log->lastStoredTerm();
+        votedFor      = RASPFS::getInstance().write(RASPFS::VOTED_FOR, selfID);
+        receivedVotes = 1;
+
+        rvReq.term         = this->currentTerm;
+        rvReq.candidateID  = this->selfID;
+        rvReq.lastLogIndex = this->log->size();
+        rvReq.lastLogTerm  = this->log->lastStoredTerm();
 
         resetElectionTimeout();
     }
-    return msg;
+    return &rvReq;
 }
 
 void ServerState::checkGrantedVotes() {

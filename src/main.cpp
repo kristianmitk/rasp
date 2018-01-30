@@ -17,9 +17,8 @@ extern "C" {
 UDPServer udpServer;
 SerialInHandler serialInHandler;
 ServerState    *currentState;
-uint8_t *incomingPacket;
-RequestVoteRequest  reqVoteReqMsg;
-RequestVoteResponse reqVoteResMsg;
+Message *msg;
+RequestVoteRequest reqVoteReqMsg;
 
 /* -------------------------- SETUP -------------------------- */
 void setup() {
@@ -60,44 +59,42 @@ void loop() {
         udpServer.broadcastHeartbeat();
     }
 
-    if ((reqVoteReqMsg = currentState->checkElectionTimeout())) {
-        udpServer.broadcastRequestVoteRPC(reqVoteReqMsg.marshall());
+    if ((msg = currentState->checkElectionTimeout())) {
+        udpServer.broadcastRequestVoteRPC(msg->marshall());
     }
 
-    if (incomingPacket = udpServer.checkForIncomingPacket()) {
-        uint32_t type = unpack_uint32_t(incomingPacket, 0);
-
-        // Serial.printf("type is : %lu\n", type);
+    if (msg = udpServer.checkForMessage()) {
+        Message *res = currentState->dispatch(msg);
 
         // TODO: is there a cleaner solution to somehow avoid a switch case on
         // the messagetype?
-        switch (type) {
-        case Message::RequestVoteReq:
-            reqVoteReqMsg = RequestVoteRequest(incomingPacket);
-            udpServer.sendPacket(currentState->handleRequestVoteReq(
-                                     reqVoteReqMsg).marshall(),
-                                 REQ_VOTE_RES_MSG_SIZE);
-
-            break;
-
-        case Message::RequestVoteRes:
-            reqVoteResMsg = RequestVoteResponse(incomingPacket);
-            currentState->handleRequestVoteRes(reqVoteResMsg);
-
-
-            break;
-
-        case Message::AppendEntriesReq:
-            Serial.println("<3");
-            currentState->resetElectionTimeout(1);
-
-            break;
-
-        case Message::AppendEntriesRes:
-
-            // TODO: implement
-            break;
-        }
+        // switch (type) {
+        // case Message::RequestVoteReq:
+        //     reqVoteReqMsg = RequestVoteRequest(incomingPacket);
+        //     udpServer.sendPacket(currentState->handleRequestVoteReq(
+        //                              reqVoteReqMsg).marshall(),
+        //                          REQ_VOTE_RES_MSG_SIZE);
+        //
+        //     break;
+        //
+        // case Message::RequestVoteRes:
+        //     reqVoteResMsg = RequestVoteResponse(incomingPacket);
+        //     currentState->handleRequestVoteRes(reqVoteResMsg);
+        //
+        //
+        //     break;
+        //
+        // case Message::AppendEntriesReq:
+        //     Serial.println("<3");
+        //     currentState->resetElectionTimeout(1);
+        //
+        //     break;
+        //
+        // case Message::AppendEntriesRes:
+        //
+        //     // TODO: implement
+        //     break;
+        // }
         return;
     }
 

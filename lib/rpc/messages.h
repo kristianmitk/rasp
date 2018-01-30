@@ -98,16 +98,43 @@ public:
 /**
  * TODO: DOCS
  */
-class AppendEntriesRequestMessage : public Message {
+class AppendEntriesRequest : public Message {
     // TODO: add missing properties
+    virtual uint8_t* marshall();
+    virtual void     serialPrint();
 };
 
 /**
  * TODO: DOCS
  */
-class AppendEntriesResponseMessage : public Message {
+class AppendEntriesResponse : public Message {
     // TODO: add missing properties
+
+    virtual uint8_t* marshall();
+    virtual void     serialPrint();
 };
 
+
+static RequestVoteRequest  rvReq;
+static RequestVoteResponse rvRes;
+
+// AppendEntriesRequest aeReq;
+// AppendEntriesResponse aeRes;
+
+Message* a(uint8_t *packet) {
+    rvReq = RequestVoteRequest(packet);
+    return &rvReq;
+}
+
+Message* b(uint8_t *packet) {
+    rvRes = RequestVoteResponse(packet);
+    return &rvReq;
+}
+
+Message * (*messageExtractors[2])(uint8_t * packet) = { a, b };
+
+Message* createMessage(uint8_t *packet) {
+    return messageExtractors[unpack_uint32_t(packet, 0)](packet);
+}
 
 #endif // ifndef messages_h
