@@ -1,6 +1,7 @@
 #ifndef messages_h
 
 #include "util.h"
+#include "marshall.h"
 #define messages_h
 extern "C" {
     #include <stdint.h>
@@ -14,18 +15,19 @@ extern "C" {
  * specifies
  * on its first 4 bytes the message type.
  */
-enum MessageType {
-    RequestVoteReq   = 101,
-    RequestVoteRes   = 102,
-    AppendEntriesReq = 201,
-    AppendEntriesRes = 202
-};
 
 /**
  * TODO: DOCS
  */
 class Message {
 public:
+
+    enum type: uint8_t {
+        RequestVoteReq   = 0,
+        RequestVoteRes   = 1,
+        AppendEntriesReq = 2,
+        AppendEntriesRes = 3
+    } type;
 
     /**
      * TODO: DOCS

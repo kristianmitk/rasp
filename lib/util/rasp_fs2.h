@@ -7,12 +7,6 @@
 
 #define LOGENTRY_SIZE 132
 
-enum RASP_File {
-    CURRENT_TERM = 0,
-    VOTED_FOR    = 1,
-    LOG          = 2
-};
-
 /**
  * TODO: DOCS
  * [getInstance description]
@@ -20,6 +14,18 @@ enum RASP_File {
  */
 class RASPFS {
 public:
+
+    /**
+     * TODO: DOCS
+     * [getInstance description]
+     * @return [description]
+     */
+    enum RASP_File: uint8_t {
+        CURRENT_TERM = 0,
+        VOTED_FOR    = 1,
+        LOG          = 2
+    };
+
 
     /**
      * To access the singleton object. The class is instantiated when this

@@ -1,7 +1,9 @@
 #include "Arduino.h"
 #include "messages.h"
 #include "marshall.h"
-#define PACKET_BODY_OFFSET 4
+#define PACKET_BODY_OFFSET 1
+
+// TODO: marshalling should return stack buffer instead of buffer pointer
 
 /**
  * --------------------------- RequestVoteRequest ---------------------------
@@ -12,6 +14,8 @@ RequestVoteRequest::RequestVoteRequest() {
 }
 
 RequestVoteRequest::RequestVoteRequest(uint8_t *packet) {
+    this->type = Message::RequestVoteReq;
+
     this->term         = unpack_uint32_t(packet, PACKET_BODY_OFFSET);
     this->candidateID  = unpack_uint32_t(packet, PACKET_BODY_OFFSET + 4);
     this->lastLogIndex = unpack_uint32_t(packet, PACKET_BODY_OFFSET + 8);
@@ -21,11 +25,12 @@ RequestVoteRequest::RequestVoteRequest(uint8_t *packet) {
 uint8_t * RequestVoteRequest::marshall() {
     uint8_t *buffer = new uint8_t[REQ_VOTE_REQ_MSG_SIZE];
 
-    pack_uint32_t(buffer,  0, RequestVoteReq);
-    pack_uint32_t(buffer,  4, this->term);
-    pack_uint32_t(buffer,  8, this->candidateID);
-    pack_uint32_t(buffer, 12, this->lastLogIndex);
-    pack_uint32_t(buffer, 16, this->lastLogTerm);
+    pack_uint8_t(buffer, 0, this->type);
+
+    pack_uint32_t(buffer, PACKET_BODY_OFFSET,      this->term);
+    pack_uint32_t(buffer, PACKET_BODY_OFFSET + 4,  this->candidateID);
+    pack_uint32_t(buffer, PACKET_BODY_OFFSET + 8,  this->lastLogIndex);
+    pack_uint32_t(buffer, PACKET_BODY_OFFSET + 12, this->lastLogTerm);
     return buffer;
 }
 
@@ -59,9 +64,9 @@ RequestVoteResponse::RequestVoteResponse(uint8_t *packet) {
 uint8_t * RequestVoteResponse::marshall() {
     uint8_t *buffer = new uint8_t[REQ_VOTE_RES_MSG_SIZE];
 
-    pack_uint32_t(buffer, 0, RequestVoteRes);
-    pack_uint32_t(buffer, 4, this->term);
-    pack_uint8_t(buffer, 8, this->voteGranted);
+    pack_uint8_t(buffer, 0, RequestVoteRes);
+    pack_uint32_t(buffer, PACKET_BODY_OFFSET, this->term);
+    pack_uint8_t(buffer, PACKET_BODY_OFFSET + 4, this->voteGranted);
     return buffer;
 }
 

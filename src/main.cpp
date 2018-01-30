@@ -30,9 +30,9 @@ void setup() {
 #ifdef INITIAL_SETUP
 
     Serial.println("\n\n[INFO] Running initial setup");
-    RASPFS::getInstance().write(CURRENT_TERM, 0);
-    RASPFS::getInstance().write(VOTED_FOR, 0);
-    RASPFS::getInstance().remove(LOG);
+    RASPFS::getInstance().write(RASPFS::CURRENT_TERM, 0);
+    RASPFS::getInstance().write(RASPFS::VOTED_FOR, 0);
+    RASPFS::getInstance().remove(RASPFS::LOG);
 
 #endif // ifdef INITIAL_SETUP
 
@@ -72,7 +72,7 @@ void loop() {
         // TODO: is there a cleaner solution to somehow avoid a switch case on
         // the messagetype?
         switch (type) {
-        case RequestVoteReq:
+        case Message::RequestVoteReq:
             reqVoteReqMsg = RequestVoteRequest(incomingPacket);
             udpServer.sendPacket(currentState->handleRequestVoteReq(
                                      reqVoteReqMsg).marshall(),
@@ -80,20 +80,20 @@ void loop() {
 
             break;
 
-        case RequestVoteRes:
+        case Message::RequestVoteRes:
             reqVoteResMsg = RequestVoteResponse(incomingPacket);
             currentState->handleRequestVoteRes(reqVoteResMsg);
 
 
             break;
 
-        case AppendEntriesReq:
+        case Message::AppendEntriesReq:
             Serial.println("<3");
             currentState->resetElectionTimeout(1);
 
             break;
 
-        case AppendEntriesRes:
+        case Message::AppendEntriesRes:
 
             // TODO: implement
             break;
