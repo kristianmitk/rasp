@@ -38,9 +38,6 @@ void setup() {
     // setup network connection
     connectToWiFi();
 
-    // open server to listen for incomming packets
-    udpServer.start();
-
     // if analog input pin 0 is unconnected, random analog
     // noise will cause the call to randomSeed() to generate
     // different seed numbers each time the sketch runs.
@@ -49,58 +46,36 @@ void setup() {
 
     // TODO: do we need a Constructor?
     currentState = new ServerState(chipID);
+
+    // open server to listen for incomming packets
+    udpServer.start();
 }
 
 /* -------------------------- LOOP -------------------------- */
+uint32_t numLoops = 0;
 void loop() {
+    ++numLoops;
     msg = NULL;
     currentState->DEBUG_APPEND_LOG();
 
     if (currentState->checkHeartbeatTimeout()) {
+        Serial.printf("\n------------------ %lu ------------------\n", numLoops);
         udpServer.broadcastHeartbeat();
     }
 
     if ((msg = currentState->checkElectionTimeout())) {
+        Serial.printf("\n------------------ %lu ------------------\n", numLoops);
         udpServer.broadcastRequestVoteRPC(msg->marshall());
     }
 
     if (msg = udpServer.checkForMessage()) {
+        Serial.printf("\n------------------ %lu ------------------\n", numLoops);
         Message *res = currentState->dispatch(msg);
 
         if (res) {
-            // res->serialPrint();
             udpServer.sendPacket(res->marshall(), REQ_VOTE_RES_MSG_SIZE);
         }
 
-        // TODO: is there a cleaner solution to somehow avoid a switch case on
-        // the messagetype?
-        // switch (type) {
-        // case Message::RequestVoteReq:
-        //     reqVoteReqMsg = RequestVoteRequest(incomingPacket);
-        //     udpServer.sendPacket(currentState->handleRequestVoteReq(
-        //                              reqVoteReqMsg).marshall(),
-        //                          REQ_VOTE_RES_MSG_SIZE);
-        //
-        //     break;
-        //
-        // case Message::RequestVoteRes:
-        //     reqVoteResMsg = RequestVoteResponse(incomingPacket);
-        //     currentState->handleRequestVoteRes(reqVoteResMsg);
-        //
-        //
-        //     break;
-        //
-        // case Message::AppendEntriesReq:
-        //     Serial.println("<3");
-        //     currentState->resetElectionTimeout(1);
-        //
-        //     break;
-        //
-        // case Message::AppendEntriesRes:
-        //
-        //     // TODO: implement
-        //     break;
-        // }
         return;
     }
 

@@ -2,8 +2,8 @@
 #include "util.h"
 
 // TODO: outsource boundaries to a config file
-#define MIN_ELECTION_TIMEOUT 250
-#define MAX_ELECTION_TIMEOUT 600
+#define MIN_ELECTION_TIMEOUT 150
+#define MAX_ELECTION_TIMEOUT 300
 #define generateTimeout() random(MIN_ELECTION_TIMEOUT, MAX_ELECTION_TIMEOUT)
 
 #define REQUIRED_VOTES (RASP_NUM_SERVERS / 2 + 1)
@@ -50,33 +50,37 @@ Message * ServerState::handleRequestVoteReq(uint32_t term,
                                             uint32_t candidateID,
                                             uint8_t  lastLogIndex,
                                             uint32_t lastLogTerm) {
-    currentTerm       = max(currentTerm, term);
     rvRes.term        = currentTerm;
     rvRes.voteGranted = false;
 
     // our state is more up to date than the candidate state
-    if ((term < currentTerm) || (lastLogTerm < log->lastStoredTerm())) {
+    if ((term < this->currentTerm) || (lastLogTerm < log->lastStoredTerm())) {
         Serial.println("VoteGranted = false");
         return &rvRes;
     }
 
-    if (!this->votedFor ||
-        (this->votedFor != selfID) ||
-        ((this->votedFor == selfID) && (this->role != CANDIDATE))) {
-        if ((lastLogTerm > log->lastStoredTerm()) ||
-            (lastLogIndex >= log->size())) {
+    if (!this->votedFor || (this->votedFor != selfID) ||
+        ((this->role == CANDIDATE) && (this->currentTerm < term)))
+    {
+        currentTerm = RASPFS::getInstance().write(RASPFS::CURRENT_TERM, term);
+        rvRes.term  = term;
+
+        if ((lastLogTerm >= log->lastStoredTerm()) &&
+            (lastLogIndex >= log->size()))
+        {
             Serial.println("VoteGranted = true");
 
             role              = FOLLOWER;
             votedFor          = candidateID;
-            rvRes.term        = term;
             rvRes.voteGranted = true;
 
             resetElectionTimeout();
         }
     } else {
-        Serial.printf("Self candidate? %d\n",
-                      ((this->votedFor == selfID) && (this->role == CANDIDATE)));
+        Serial.printf("Self candidate in term: %d? %d\n",
+                      term,
+                      ((this->role == CANDIDATE) &&
+                       (this->currentTerm < term)));
         Serial.println("VoteGranted = false - 2nd condition");
     }
 
@@ -97,7 +101,6 @@ void ServerState::handleRequestVoteRes(uint32_t term, uint8_t  voteGranted) {
     Serial.printf("\n\nwithin `handleRequestVoteRes` - ROLE: %d\n", this->role);
 
     if (this->role == CANDIDATE) {
-        // make sure not to count obsolete responses
         if (voteGranted) {
             if (term == this->currentTerm) {
                 this->receivedVotes++;
@@ -167,7 +170,7 @@ void ServerState::checkGrantedVotes() {
 
         // TODO: set nextIndex/matchIndex for all followes
         role             = LEADER;
-        heartbeatTimeout = random(100, 150);
+        heartbeatTimeout = 75; // random(50, 100)
         lastTimeout      = millis();
         Serial.printf("New heartbeatTimeout: %lu\ncurrent millis: %lu\n",
                       heartbeatTimeout,
