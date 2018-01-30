@@ -18,7 +18,7 @@ void UDPServer::broadcastHeartbeat() {
     Serial.printf("Broadcasting heartbeat\n");
 
     uint8_t buf[4];
-    pack_uint32_t(buf, 0, 201);
+    pack_uint32_t(buf, 0, Message::AppendEntriesReq);
 
     for (int i = 0; i < RASP_NUM_SERVERS; i++) {
         Serial.printf("Sending heartbeat to: %s\n", servers[i].IP);

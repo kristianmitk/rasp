@@ -2,11 +2,11 @@
 
 PARAM="$1";
 
-# for device in /dev/cu.usbserial*; do
-#     echo "Starting upload of project sketch to $device"
-#     pio run -t upload --upload-port $device
-# done
-#
+for device in /dev/cu.usbserial*; do
+    echo "Starting upload of project sketch to $device"
+    pio run -t upload --upload-port $device
+done
+
 
 if [[ "$PARAM" == "-s" ]]; then
     screen -d -m -S rasp -t "random" bash -c 'clear;'
@@ -14,5 +14,4 @@ if [[ "$PARAM" == "-s" ]]; then
         screen -r rasp -X screen -t "$device" bash -c "clear;pio device monitor --port $device --baud 115200"
     done
     screen -r rasp
-    ^a S
 fi

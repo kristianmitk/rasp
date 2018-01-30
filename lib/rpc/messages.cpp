@@ -6,7 +6,7 @@
 // TODO: marshalling should return stack buffer instead of buffer pointer
 
 /**
- * --------------------------- RequestVoteRequest ---------------------------
+ * ----------------------------- RequestVoteRequest ----------------------------
  */
 
 RequestVoteRequest::RequestVoteRequest() {
@@ -19,19 +19,18 @@ RequestVoteRequest::RequestVoteRequest(uint8_t *packet) {
 
     this->term         = unpack_uint32_t(packet, PACKET_BODY_OFFSET);
     this->candidateID  = unpack_uint32_t(packet, PACKET_BODY_OFFSET + 4);
-    this->lastLogIndex = unpack_uint32_t(packet, PACKET_BODY_OFFSET + 8);
-    this->lastLogTerm  = unpack_uint32_t(packet, PACKET_BODY_OFFSET + 12);
+    this->lastLogIndex = unpack_uint8_t(packet, PACKET_BODY_OFFSET + 8);
+    this->lastLogTerm  = unpack_uint32_t(packet, PACKET_BODY_OFFSET + 9);
 }
 
 uint8_t * RequestVoteRequest::marshall() {
     uint8_t *buffer = new uint8_t[REQ_VOTE_REQ_MSG_SIZE];
 
     pack_uint8_t(buffer, 0, Message::RequestVoteReq);
-
-    pack_uint32_t(buffer, PACKET_BODY_OFFSET,      this->term);
-    pack_uint32_t(buffer, PACKET_BODY_OFFSET + 4,  this->candidateID);
-    pack_uint32_t(buffer, PACKET_BODY_OFFSET + 8,  this->lastLogIndex);
-    pack_uint32_t(buffer, PACKET_BODY_OFFSET + 12, this->lastLogTerm);
+    pack_uint32_t(buffer, PACKET_BODY_OFFSET,     this->term);
+    pack_uint32_t(buffer, PACKET_BODY_OFFSET + 4, this->candidateID);
+    pack_uint8_t(buffer, PACKET_BODY_OFFSET + 8, this->lastLogIndex);
+    pack_uint32_t(buffer, PACKET_BODY_OFFSET + 9, this->lastLogTerm);
     return buffer;
 }
 
@@ -51,7 +50,7 @@ void RequestVoteRequest::serialPrint() {
 }
 
 /**
- * --------------------------- RequestVoteResponse ---------------------------
+ * ---------------------------- RequestVoteResponse ----------------------------
  */
 
 
@@ -68,7 +67,7 @@ RequestVoteResponse::RequestVoteResponse(uint8_t *packet) {
 uint8_t * RequestVoteResponse::marshall() {
     uint8_t *buffer = new uint8_t[REQ_VOTE_RES_MSG_SIZE];
 
-    pack_uint8_t(buffer, 0, RequestVoteRes);
+    pack_uint8_t(buffer, 0, Message::RequestVoteRes);
     pack_uint32_t(buffer, PACKET_BODY_OFFSET, this->term);
     pack_uint8_t(buffer, PACKET_BODY_OFFSET + 4, this->voteGranted);
     return buffer;
@@ -85,19 +84,65 @@ void RequestVoteResponse::serialPrint() {
                   );
 }
 
+/**
+ * --------------------------- AppendEntriesResponse ---------------------------
+ */
+
+AppendEntriesRequest::AppendEntriesRequest() {
+    this->type = Message::AppendEntriesReq;
+
+    // TODO: add missing stuff
+}
+
+AppendEntriesRequest::AppendEntriesRequest(uint8_t *packet) {
+    this->type = Message::AppendEntriesReq;
+
+    // TODO: add missing stuff
+}
+
+uint8_t * AppendEntriesRequest::marshall() {
+    // TODO implement
+    return NULL;
+}
+
+void AppendEntriesRequest::serialPrint() {
+    // TODO: implement
+}
+
+/**
+ * ---------------------------         OTHER         ---------------------------
+ */
 Message* a(uint8_t *packet) {
     rvReq = RequestVoteRequest(packet);
+
     return &rvReq;
 }
 
 Message* b(uint8_t *packet) {
     rvRes = RequestVoteResponse(packet);
-    return &rvReq;
+    return &rvRes;
 }
 
-Message * (*messageExtractors[2])(uint8_t * packet) = { a, b };
+Message* c(uint8_t *packet) {
+    aeReq = AppendEntriesRequest(packet);
+    return &aeReq;
+}
+
+/**
+ * TODO: DOCS
+ * NOTE: keep the order like we have it in Message::MessageType
+ * [createMessage description]
+ * @param  packet [description]
+ * @return        [description]
+ */
+Message * (*messageExtractors[3])(uint8_t * packet) = { a, b, c };
 
 Message* createMessage(uint8_t *packet) {
-    Serial.printf("\n\n%d\n", unpack_uint8_t(packet, 0));
-    return messageExtractors[unpack_uint8_t(packet, 0)](packet);
+    uint8_t messageType = unpack_uint8_t(packet, 0);
+
+    if (messageType < Message::lastVal) {
+        return messageExtractors[messageType](packet);
+    }
+    Serial.printf("\n\nindex: %d\n", unpack_uint8_t(packet, 0));
+    return NULL;
 }

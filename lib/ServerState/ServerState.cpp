@@ -48,7 +48,7 @@ Message * ServerState::dispatch(Message *msg) {
 // TODO: set persistent values
 Message * ServerState::handleRequestVoteReq(uint32_t term,
                                             uint32_t candidateID,
-                                            uint32_t lastLogIndex,
+                                            uint8_t  lastLogIndex,
                                             uint32_t lastLogTerm) {
     currentTerm       = max(currentTerm, term);
     rvRes.term        = currentTerm;
@@ -132,12 +132,14 @@ Message * ServerState::checkElectionTimeout() {
     rvReq = RequestVoteRequest();
 
     if (millis() > lastTimeout + electionTimeout) {
-        Serial.printf("\n[WARN] Election timout. Starting a new election\n");
+        Serial.printf(
+            "\n[WARN] Election timout. Starting a new election on term: %d\n",
+            ++this->currentTerm);
         role = CANDIDATE;
 
         // Serial.printf("\nBEFORE:%lu\n", millis());
 
-        RASPFS::getInstance().write(RASPFS::CURRENT_TERM, ++this->currentTerm);
+        RASPFS::getInstance().write(RASPFS::CURRENT_TERM, this->currentTerm + 1);
 
         // Serial.printf("\nAFTER:%lu\n", millis());
 
@@ -187,7 +189,7 @@ void ServerState::resetElectionTimeout(uint8_t placeholder) {
     resetElectionTimeout();
 }
 
-Role ServerState::getRole() {
+ServerState::Role ServerState::getRole() {
     return this->role;
 }
 
@@ -206,7 +208,7 @@ void ServerState::DEBUG_APPEND_LOG() {
         uint32_t rnd = random(1, 1000000);
 
         if (rnd > 999990) {
-            Serial.printf("\n%luy",        rnd);
+            Serial.printf("\n%lu\n",       rnd);
             Serial.printf("Before: %lu\n", millis());
             logEntry_t newEntry;
             newEntry.term = this->currentTerm;

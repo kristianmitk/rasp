@@ -10,11 +10,6 @@ extern "C" {
     #include <stdint.h>
 }
 
-enum Role {
-    FOLLOWER,
-    CANDIDATE,
-    LEADER
-};
 
 /**
  * TODO: DOCS
@@ -24,6 +19,17 @@ enum Role {
  */
 class ServerState {
 public:
+
+    /**
+     * TODO: DOCS
+     * [ServerState description]
+     * @param id [description]
+     */
+    enum Role {
+        FOLLOWER,
+        CANDIDATE,
+        LEADER
+    };
 
     /**
      * TODO: DOCS
@@ -68,7 +74,7 @@ public:
      */
     Message* handleRequestVoteReq(uint32_t term,
                                   uint32_t scandidateID,
-                                  uint32_t lastLogIndex,
+                                  uint8_t  lastLogIndex,
                                   uint32_t lastLogTerm);
 
     /**

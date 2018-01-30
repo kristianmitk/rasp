@@ -7,8 +7,8 @@ uint32_t unpack_uint32_t(uint8_t *buf, int offset) {
            (uint32_t)buf[offset];
 }
 
-uint32_t unpack_uint8_t(uint8_t *buf, int offset) {
-    return (uint32_t)buf[offset];
+uint8_t unpack_uint8_t(uint8_t *buf, int offset) {
+    return buf[offset];
 }
 
 void pack_uint32_t(uint8_t *buf, int offset, uint32_t data) {

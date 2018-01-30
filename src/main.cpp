@@ -68,7 +68,7 @@ void loop() {
         Message *res = currentState->dispatch(msg);
 
         if (res) {
-            res->serialPrint();
+            // res->serialPrint();
             udpServer.sendPacket(res->marshall(), REQ_VOTE_RES_MSG_SIZE);
         }
 

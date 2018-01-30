@@ -22,8 +22,8 @@ uint32_t unpack_uint32_t(uint8_t *buf,
  * @param  offset [description]
  * @return        [description]
  */
-uint32_t unpack_uint8_t(uint8_t *buf,
-                        int      offset);
+uint8_t unpack_uint8_t(uint8_t *buf,
+                       int      offset);
 
 /**
  * TODO: DOCS
