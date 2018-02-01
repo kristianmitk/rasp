@@ -29,6 +29,10 @@ void setup() {
 #ifdef INITIAL_SETUP
 
     Serial.println("\n\n[INFO] Running initial setup");
+
+    // TODO: provide functions for setting files to initial state
+    RASPFS::getInstance().remove(RASPFS::CURRENT_TERM);
+    RASPFS::getInstance().remove(RASPFS::VOTED_FOR);
     RASPFS::getInstance().write(RASPFS::CURRENT_TERM, 0);
     RASPFS::getInstance().write(RASPFS::VOTED_FOR, 0);
     RASPFS::getInstance().remove(RASPFS::LOG);

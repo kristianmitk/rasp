@@ -70,7 +70,19 @@ public:
      */
     void       printLastEntry();
 
+    /**
+     * TODO: DOCS
+     * [lastEntry description]
+     * @return [description]
+     */
     logEntry_t lastEntry();
+
+    /**
+     * TODO: DOCS
+     * [lastIndex description]
+     * @return [description]
+     */
+    uint8_t    lastIndex();
 
 private:
 

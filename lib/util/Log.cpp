@@ -19,14 +19,18 @@ uint32_t Log::lastStoredTerm() {
     return this->latestTerm;
 }
 
-logEntry_t Log::read(uint32_t index) {
-    return entries[abs(index) % LOG_LENGTH];
-}
-
 logEntry_t Log::lastEntry() {
     uint8_t index = this->nextEntry;
 
     return read(index == 0 ? 0 : index - 1);
+}
+
+uint8_t Log::lastIndex() {
+    return this->nextEntry ? this->nextEntry - 1 : this->nextEntry;
+}
+
+logEntry_t Log::read(uint32_t index) {
+    return entries[abs(index) % LOG_LENGTH];
 }
 
 void Log::printLastEntry() {

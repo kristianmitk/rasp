@@ -2,6 +2,8 @@
 
 PARAM1="$1";
 PARAM2="$2";
+
+
 if [[ "$PARAM2" != "-n" ]]; then
     for device in /dev/cu.usbserial*; do
         echo "Starting upload of project sketch to $device"

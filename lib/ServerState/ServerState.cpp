@@ -66,7 +66,7 @@ Message * ServerState::handleRequestVoteReq(uint32_t term,
         rvRes.term  = term;
 
         if ((lastLogTerm >= log->lastStoredTerm()) &&
-            (lastLogIndex >= log->size()))
+            (lastLogIndex >= log->lastIndex()))
         {
             Serial.println("VoteGranted = true");
 
@@ -135,14 +135,15 @@ Message * ServerState::checkElectionTimeout() {
     rvReq = RequestVoteRequest();
 
     if (millis() > lastTimeout + electionTimeout) {
+        RASPFS::getInstance().write(RASPFS::CURRENT_TERM, (++this->currentTerm));
         Serial.printf(
             "\n[WARN] Election timout. Starting a new election on term: %d\n",
-            ++this->currentTerm);
+            this->currentTerm);
         role = CANDIDATE;
 
         // Serial.printf("\nBEFORE:%lu\n", millis());
 
-        RASPFS::getInstance().write(RASPFS::CURRENT_TERM, this->currentTerm + 1);
+        RASPFS::getInstance().write(RASPFS::CURRENT_TERM, this->currentTerm);
 
         // Serial.printf("\nAFTER:%lu\n", millis());
 
@@ -216,11 +217,8 @@ void ServerState::DEBUG_APPEND_LOG() {
             logEntry_t newEntry;
             newEntry.term = this->currentTerm;
 
-            if (random(1, 100) > 50) {
-                newEntry.data[0] = 1;
-            } else {
-                newEntry.data[0] = 0;
-            }
+            newEntry.data[0] = random(0, 2);
+
             this->log->append(newEntry);
             this->log->printLastEntry();
             Serial.printf("After: %lu\n", millis());

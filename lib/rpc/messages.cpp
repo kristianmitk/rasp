@@ -114,7 +114,6 @@ void AppendEntriesRequest::serialPrint() {
  */
 Message* a(uint8_t *packet) {
     rvReq = RequestVoteRequest(packet);
-
     return &rvReq;
 }
 
@@ -140,9 +139,8 @@ Message * (*messageExtractors[3])(uint8_t * packet) = { a, b, c };
 Message* createMessage(uint8_t *packet) {
     uint8_t messageType = unpack_uint8_t(packet, 0);
 
-    if (messageType < Message::lastVal) {
-        return messageExtractors[messageType](packet);
-    }
-    Serial.printf("\n\nindex: %d\n", unpack_uint8_t(packet, 0));
-    return NULL;
+    Serial.printf("\nMessageType: %d\n", messageType);
+
+    return messageType < Message::lastVal ?
+           messageExtractors[messageType](packet) : NULL;
 }

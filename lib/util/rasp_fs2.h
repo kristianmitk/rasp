@@ -146,12 +146,12 @@ private:
      * @return          [description]
      */
     uint32_t read_uint32_t(const char *filename) {
-        char buf[4];
-        File f = SPIFFS.open(filename, "r");
+        uint8_t buf[4];
+        File    f = SPIFFS.open(filename, "r");
 
-        f.readBytes(buf, 4);
+        f.read(buf, 4);
         f.close();
-        return unpack_uint32_t((uint8_t *)buf, 0);
+        return unpack_uint32_t(buf, 0);
     }
 
     /**
