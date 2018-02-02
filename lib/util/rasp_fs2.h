@@ -195,19 +195,29 @@ private:
         printSPIFFSInfo();
 
 #ifdef INITIAL_SETUP
+
         Serial.println("[INFO] Running initial FS setup");
-        Dir  dir = SPIFFS.openDir("/");
-        File f;
+        Dir dir = SPIFFS.openDir("/");
 
         while (dir.next()) {
-            f = SPIFFS.open(dir.fileName(), "w");
-            Serial.printf("%s %lu bytes\n", f.name(), f.size());
+            Serial.print("About to remove \"" + dir.fileName() + "\"");
+            Serial.printf(" with size: %lu\n", dir.fileSize());
+            SPIFFS.remove(dir.fileName());
+        }
+
+        File f;
+
+        for (uint8_t i = 0; i < 3; i++) {
+            f = SPIFFS.open(FILE_NAME[i], "w");
+            Serial.printf("Created empty file \"%s\" \n", f.name());
             f.close();
         }
 
         write_uint32_t(FILE_NAME[CURRENT_TERM], 0);
         write_uint32_t(FILE_NAME[VOTED_FOR],    0);
+
         Serial.println();
+
 #endif // ifdef INITIAL_SETUP
 
         this->openLog();

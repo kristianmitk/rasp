@@ -50,23 +50,22 @@ void loop() {
     currentState->DEBUG_APPEND_LOG();
 
     if (currentState->checkHeartbeatTimeout()) {
-        Serial.printf("\n------------------ %lu ------------------\n", numLoops);
         udpServer.broadcastHeartbeat();
+        Serial.printf("\n------------------ %lu ------------------\n", numLoops);
     }
 
     if ((msg = currentState->checkElectionTimeout())) {
-        Serial.printf("\n------------------ %lu ------------------\n", numLoops);
         udpServer.broadcastRequestVoteRPC(msg->marshall());
+        Serial.printf("\n------------------ %lu ------------------\n", numLoops);
     }
 
     if (msg = udpServer.checkForMessage()) {
-        Serial.printf("\n------------------ %lu ------------------\n", numLoops);
         Message *res = currentState->dispatch(msg);
 
         if (res) {
             udpServer.sendPacket(res->marshall(), REQ_VOTE_RES_MSG_SIZE);
         }
-
+        Serial.printf("\n------------------ %lu ------------------\n", numLoops);
         return;
     }
 
