@@ -19,8 +19,8 @@ RequestVoteRequest::RequestVoteRequest(uint8_t *packet) {
 
     this->term         = unpack_uint32_t(packet, PACKET_BODY_OFFSET);
     this->candidateID  = unpack_uint32_t(packet, PACKET_BODY_OFFSET + 4);
-    this->lastLogIndex = unpack_uint8_t(packet, PACKET_BODY_OFFSET + 8);
-    this->lastLogTerm  = unpack_uint32_t(packet, PACKET_BODY_OFFSET + 9);
+    this->lastLogIndex = unpack_uint16_t(packet, PACKET_BODY_OFFSET + 8);
+    this->lastLogTerm  = unpack_uint32_t(packet, PACKET_BODY_OFFSET + 10);
 }
 
 uint8_t * RequestVoteRequest::marshall() {
@@ -29,8 +29,8 @@ uint8_t * RequestVoteRequest::marshall() {
     pack_uint8_t(buffer, 0, Message::RequestVoteReq);
     pack_uint32_t(buffer, PACKET_BODY_OFFSET,     this->term);
     pack_uint32_t(buffer, PACKET_BODY_OFFSET + 4, this->candidateID);
-    pack_uint8_t(buffer, PACKET_BODY_OFFSET + 8, this->lastLogIndex);
-    pack_uint32_t(buffer, PACKET_BODY_OFFSET + 9, this->lastLogTerm);
+    pack_uint16_t(buffer, PACKET_BODY_OFFSET + 8, this->lastLogIndex);
+    pack_uint32_t(buffer, PACKET_BODY_OFFSET + 10, this->lastLogTerm);
     return buffer;
 }
 

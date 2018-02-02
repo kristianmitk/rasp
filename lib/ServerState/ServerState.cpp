@@ -2,8 +2,8 @@
 #include "util.h"
 
 // TODO: outsource boundaries to a config file
-#define MIN_ELECTION_TIMEOUT 150
-#define MAX_ELECTION_TIMEOUT 300
+#define MIN_ELECTION_TIMEOUT 200
+#define MAX_ELECTION_TIMEOUT 350
 #define generateTimeout() random(MIN_ELECTION_TIMEOUT, MAX_ELECTION_TIMEOUT)
 
 #define REQUIRED_VOTES (RASP_NUM_SERVERS / 2 + 1)
@@ -21,6 +21,7 @@ ServerState::ServerState(uint32_t id) {
     lastTimeout     = millis();
 
     this->serialPrint();
+    Serial.println();
 }
 
 Message * ServerState::dispatch(Message *msg) {
@@ -54,24 +55,26 @@ Message * ServerState::handleRequestVoteReq(uint32_t term,
     rvRes.voteGranted = false;
 
     // our state is more up to date than the candidate state
-    if ((term < this->currentTerm) || (lastLogTerm < log->lastStoredTerm())) {
+    if (term <= this->currentTerm) {
         Serial.println("VoteGranted = false");
         return &rvRes;
     }
 
-    if (!this->votedFor || (this->votedFor != selfID) ||
-        ((this->role == CANDIDATE) && (this->currentTerm < term)))
-    {
+    // if (!this->votedFor || (this->votedFor != selfID) ||
+    //     ((this->role == CANDIDATE) && (this->currentTerm < term)))
+    if (!this->votedFor || (this->currentTerm < term)) {
         currentTerm = RASPFS::getInstance().write(RASPFS::CURRENT_TERM, term);
         rvRes.term  = term;
 
+        // SAFETY RULES (§5.2, §5.4)
         if ((lastLogTerm >= log->lastStoredTerm()) &&
             (lastLogIndex >= log->lastIndex()))
         {
             Serial.println("VoteGranted = true");
 
-            role              = FOLLOWER;
-            votedFor          = candidateID;
+            role     = FOLLOWER;
+            votedFor = RASPFS::getInstance().write(RASPFS::VOTED_FOR,
+                                                   candidateID);
             rvRes.voteGranted = true;
 
             resetElectionTimeout();
@@ -80,10 +83,9 @@ Message * ServerState::handleRequestVoteReq(uint32_t term,
         Serial.printf("Self candidate in term: %d? %d\n",
                       term,
                       ((this->role == CANDIDATE) &&
-                       (this->currentTerm < term)));
+                       (this->currentTerm == term)));
         Serial.println("VoteGranted = false - 2nd condition");
     }
-
     return &rvRes;
 }
 
@@ -136,16 +138,13 @@ Message * ServerState::checkElectionTimeout() {
 
     if (millis() > lastTimeout + electionTimeout) {
         RASPFS::getInstance().write(RASPFS::CURRENT_TERM, (++this->currentTerm));
+
         Serial.printf(
             "\n[WARN] Election timout. Starting a new election on term: %d\n",
             this->currentTerm);
+
         role = CANDIDATE;
 
-        // Serial.printf("\nBEFORE:%lu\n", millis());
-
-        RASPFS::getInstance().write(RASPFS::CURRENT_TERM, this->currentTerm);
-
-        // Serial.printf("\nAFTER:%lu\n", millis());
 
         // starting a new election always results in first voting for itself
         votedFor      = RASPFS::getInstance().write(RASPFS::VOTED_FOR, selfID);
@@ -153,7 +152,7 @@ Message * ServerState::checkElectionTimeout() {
 
         rvReq.term         = this->currentTerm;
         rvReq.candidateID  = this->selfID;
-        rvReq.lastLogIndex = this->log->size();
+        rvReq.lastLogIndex = this->log->lastIndex();
         rvReq.lastLogTerm  = this->log->lastStoredTerm();
 
         resetElectionTimeout();
@@ -212,16 +211,12 @@ void ServerState::DEBUG_APPEND_LOG() {
         uint32_t rnd = random(1, 1000000);
 
         if (rnd > 999990) {
-            Serial.printf("\n%lu\n",       rnd);
-            Serial.printf("Before: %lu\n", millis());
-            logEntry_t newEntry;
-            newEntry.term = this->currentTerm;
+            uint16_t entrySize = random(1, 50);
+            uint8_t  entryData[entrySize];
+            entryData[0] = random(0, 2);
 
-            newEntry.data[0] = random(0, 2);
-
-            this->log->append(newEntry);
+            this->log->append(currentTerm, entryData, entrySize);
             this->log->printLastEntry();
-            Serial.printf("After: %lu\n", millis());
         }
     }
 }

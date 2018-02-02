@@ -1,17 +1,17 @@
 #include <Arduino.h>
 
+#include "env.h"
 #include "rasp_wifi.h"
 #include "messages.h"
 #include "marshall.h"
 #include "UDPServer.h"
 #include "ServerState.h"
 #include "SerialInHandler.h"
-
+#include "FS.h"
 extern "C" {
     #include "user_interface.h"
 }
 
-#define INITIAL_SETUP
 #define DEFAULT_BAUD_RATE 115200
 
 UDPServer udpServer;
@@ -26,18 +26,6 @@ void setup() {
     uint32_t chipID = system_get_chip_id();
     Serial.printf("\nChip ID:%d\n", chipID);
 
-#ifdef INITIAL_SETUP
-
-    Serial.println("\n\n[INFO] Running initial setup");
-
-    // TODO: provide functions for setting files to initial state
-    RASPFS::getInstance().remove(RASPFS::CURRENT_TERM);
-    RASPFS::getInstance().remove(RASPFS::VOTED_FOR);
-    RASPFS::getInstance().write(RASPFS::CURRENT_TERM, 0);
-    RASPFS::getInstance().write(RASPFS::VOTED_FOR, 0);
-    RASPFS::getInstance().remove(RASPFS::LOG);
-
-#endif // ifdef INITIAL_SETUP
 
     // setup network connection
     connectToWiFi();

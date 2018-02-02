@@ -1,43 +1,74 @@
 #include "Log.h"
 
 
-void Log::append(logEntry_t newEntry) {
-    if (nextEntry == LOG_LENGTH) {
-        Serial.printf("[ERR] LOG IS FULL! Appending entry not possible");
+void Log::append(uint32_t term, uint8_t *data, uint16_t size) {
+    // TODO: add missing variables
+    uint16_t lastAddress = lastEntryAddress();
+    uint16_t lastSize    = unpack_uint16_t(&this->data[lastAddress], 4);
+
+    // +6 for term and size of data - check the
+    uint16_t offset = lastAddress + 6 + lastSize;
+
+    if (offset > LOG_SIZE) {
+        Serial.printf(
+            "[ERR] Log is full! Cannot append data.\n \
+            New data size: %lu, used log size: %lu",
+            size,
+            offset);
         return;
     }
-    entries[nextEntry] = newEntry;
+
+    if (nextEntry == 512) {
+        Serial.printf("[ERR] Log entries size limit of %d reached",
+                      NUM_LOG_ENTRIES);
+        return;
+    }
+
+    uint8_t *p = &this->data[offset];
+
+    // set term
+    pack_uint32_t(p, 0, term);
+
+    // set size
+    pack_uint16_t(p, 4, size);
+
+    // set data
+    memcpy(p + 6, data, size);
+    this->dataPointers[nextEntry] = offset;
     nextEntry++;
-    RASPFS::getInstance().appendLogEntry(newEntry);
+
+    latestTerm = max(latestTerm, term);
+
+    RASPFS::getInstance().appendLogEntry(p, size + 6);
 }
 
-size_t Log::size() {
-    return this->nextEntry;
+uint16_t Log::size() {
+    return unpack_uint16_t(this->getPointer(lastIndex()),
+                           4) + lastEntryAddress() + 6;
 }
 
 uint32_t Log::lastStoredTerm() {
     return this->latestTerm;
 }
 
-logEntry_t Log::lastEntry() {
-    uint8_t index = this->nextEntry;
-
-    return read(index == 0 ? 0 : index - 1);
+uint16_t Log::lastEntryAddress() {
+    return dataPointers[lastIndex()];
 }
 
-uint8_t Log::lastIndex() {
+uint16_t Log::lastIndex() {
+    // cover initial 0 state
     return this->nextEntry ? this->nextEntry - 1 : this->nextEntry;
 }
 
-logEntry_t Log::read(uint32_t index) {
-    return entries[abs(index) % LOG_LENGTH];
-}
-
 void Log::printLastEntry() {
-    logEntry_t last = lastEntry();
+    uint8_t *p = this->getPointer(lastIndex());
 
     Serial.printf("LOG index: %d\nTerm:%lu, Val: %d\n",
-                  this->nextEntry,
-                  last.term,
-                  unpack_uint8_t(last.data, 0));
+                  lastIndex(),
+                  unpack_uint32_t(p, 0),
+                  unpack_uint8_t(p + 6, 0));
+}
+
+uint8_t * Log::getPointer(uint16_t index) {
+    return &this->data[this->dataPointers[index]];
 }

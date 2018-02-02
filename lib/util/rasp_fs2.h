@@ -4,8 +4,7 @@
 #include <fs.h>
 #include "marshall.h"
 #include "util.h"
-
-#define LOGENTRY_SIZE 132
+#include "env.h"
 
 /**
  * TODO: DOCS
@@ -66,7 +65,7 @@ public:
      * @param  data [description]
      * @return      [description]
      */
-    uint32_t write(uint8_t f, uint32_t data) {
+    uint32_t write(RASP_File f, uint32_t data) {
         return write_uint32_t(FILE_NAME[f], data);
     }
 
@@ -76,22 +75,8 @@ public:
      * @param  f [description]
      * @return   [description]
      */
-    uint32_t read(uint8_t f) {
+    uint32_t read(RASP_File f) {
         return read_uint32_t(FILE_NAME[f]);
-    }
-
-    /**
-     * TODO: DOCS
-     * [appendString description]
-     * @param  name   [description]
-     * @param  string [description]
-     * @return        [description]
-     */
-    size_t appendString(RASP_File name = LOG, const char *string = NULL) {
-        File f = SPIFFS.open(FILE_NAME[name], "a");
-
-        f.write((uint8_t *)string, strlen(string));
-        f.close();
     }
 
     /**
@@ -100,15 +85,22 @@ public:
      * @param  newEntry [description]
      * @return          [description]
      */
-    size_t appendLogEntry(logEntry_t newEntry) {
-        serializeLogEntry(newEntry);
-        File f = SPIFFS.open(FILE_NAME[LOG], "a");
+    size_t appendLogEntry(uint8_t *data, uint16_t size) {
+        if (!SPIFFS.exists(FILE_NAME[LOG])) {
+            Serial.printf("%s does not exist", FILE_NAME[LOG]);
+            openLog();
+        }
 
-        f.write(this->serializeBuffer, LOGENTRY_SIZE);
-        Serial.printf("New file size is: %lu\n",
-                      f.size());
-        f.close();
-        return LOGENTRY_SIZE;
+        // TODO: add error handling
+        Serial.printf("Before: %lu\n", millis());
+        _logF.write(data, size);
+
+        // Serial.printf("Written: %lu bytes to LOG. New file size: %lu
+        // bytes\n",
+        //               _logF.write(data, size),
+        //               _logF.size());
+        Serial.printf("After: %lu\n", millis());
+        return size;
     }
 
     /**
@@ -117,9 +109,10 @@ public:
      * @param  f [description]
      * @return   [description]
      */
-    size_t remove(RASP_File f) {
-        return SPIFFS.remove(FILE_NAME[f]);
-    }
+
+    // size_t remove(RASP_File f) {
+    //     return SPIFFS.remove(FILE_NAME[f]);
+    // }
 
 private:
 
@@ -156,58 +149,37 @@ private:
 
     /**
      * TODO: DOCS
-     * [serialize description]
-     * @param  t [description]
-     * @return   [description]
+     * [Log::openLog description]
      */
-    template<typename T>
-    uint8_t* serialize(const T& t) {
-        uint8_t *buffer[sizeof(t)];
-
-        memcpy(buffer, t, sizeof(t));
-        return buffer;
+    void openLog() {
+        // TODO check on sizes and open `SS/LOG+(1|2|3)`
+        _logF = SPIFFS.open(FILE_NAME[LOG], "a+");
     }
 
     /**
      * TODO: DOCS
-     * [serializeLogEntry description]
-     * @param  logEntry [description]
-     * @param  buffer   [description]
-     * @return          [description]
+     * [printSPIFFSInfo description]
      */
-    uint8_t* serializeLogEntry(logEntry_t logEntry) {
-        clearBuffer();
+    void printSPIFFSInfo() {
+        FSInfo info;
 
-        // serialize the logEntry term
-        uint32_t *p32 = (uint32_t *)serializeBuffer;
+        SPIFFS.info(info);
 
-        *p32 = logEntry.term;
-        p32++;
-
-        // serialize the log entry data buffer
-        uint8_t *p8 = (uint8_t *)p32;
-        int i       = 0;
-
-        while (i < LOG_DATA_SIZE) {
-            *p8 = logEntry.data[i];
-            p8++;
-            i++;
-        }
+        Serial.printf(
+            "[INFO] about SPIFFS:\n"
+            "Max open files: %lu\n"
+            "Block size: %lu\n"
+            "Path length: %lu\n"
+            "Page size: %lu\n"
+            "Used bytes: %lu\n"
+            "Max bytes: %lu\n\n",
+            info.maxOpenFiles,
+            info.blockSize,
+            info.maxPathLength,
+            info.pageSize,
+            info.usedBytes,
+            info.totalBytes);
     }
-
-    // /**
-    //  * TODO: DOCS
-    //  * [deserialize description]
-    //  * @param  buf [description]
-    //  * @return     [description]
-    //  */
-    // template<typename T>
-    // const T& deserialize(const uint8_t buf) {
-    //     T t;
-    //
-    //     memcpy(t, buf, sizeof(t));
-    //     return t;
-    // }
 
     /**
      * TODO: DOCS
@@ -219,6 +191,26 @@ private:
             exit;
         }
         Serial.println("\n[SUCC] File System mounted");
+
+        printSPIFFSInfo();
+
+#ifdef INITIAL_SETUP
+        Serial.println("[INFO] Running initial FS setup");
+        Dir  dir = SPIFFS.openDir("/");
+        File f;
+
+        while (dir.next()) {
+            f = SPIFFS.open(dir.fileName(), "w");
+            Serial.printf("%s %lu bytes\n", f.name(), f.size());
+            f.close();
+        }
+
+        write_uint32_t(FILE_NAME[CURRENT_TERM], 0);
+        write_uint32_t(FILE_NAME[VOTED_FOR],    0);
+        Serial.println();
+#endif // ifdef INITIAL_SETUP
+
+        this->openLog();
     }
 
     RASPFS(RASPFS const&);
@@ -230,11 +222,7 @@ private:
         "/SS/log"
     };
 
-    void clearBuffer() {
-        memset(serializeBuffer, 0, LOG_DATA_SIZE);
-    }
-
-    uint8_t serializeBuffer[132];
+    File _logF;
 };
 
 #endif // ifndef rasp_fs_h

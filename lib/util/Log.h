@@ -9,8 +9,8 @@ extern "C" {
     #include "stdint.h"
 }
 
-#define LOG_DATA_SIZE 128
-#define LOG_LENGTH 256
+#define LOG_SIZE 33000
+#define NUM_LOG_ENTRIES 512
 
 class Log {
 public:
@@ -31,7 +31,9 @@ public:
      * @param  newEntry [description]
      * @return          [description]
      */
-    void       append(logEntry_t newEntry);
+    void append(uint32_t term,
+                uint8_t *data,
+                uint16_t size);
 
     /**
      * TODO: DOCS
@@ -54,7 +56,7 @@ public:
      * [size description]
      * @return [description]
      */
-    size_t     size();
+    uint16_t   size();
 
     /**
      * TODO: DOCS
@@ -82,14 +84,18 @@ public:
      * [lastIndex description]
      * @return [description]
      */
-    uint8_t    lastIndex();
+    uint16_t   lastIndex();
+
+    logEntry_t getEntry(uint16_t index);
 
 private:
 
-    uint8_t nextEntry;
+    uint16_t lastEntryAddress();
+    uint8_t* getPointer(uint16_t index);
+    uint16_t nextEntry;
     uint32_t latestTerm;
 
-    // TODO: solve fixed array size - maybe use std::vector ?!
-    logEntry_t entries[LOG_LENGTH];
+    uint8_t data[LOG_SIZE];
+    uint16_t dataPointers[NUM_LOG_ENTRIES];
 };
 #endif // ifndef Log_h
