@@ -49,7 +49,7 @@ Message * ServerState::dispatch(Message *msg) {
 // TODO: set persistent values
 Message * ServerState::handleRequestVoteReq(uint32_t term,
                                             uint32_t candidateID,
-                                            uint8_t  lastLogIndex,
+                                            uint16_t lastLogIndex,
                                             uint32_t lastLogTerm) {
     rvRes.term        = currentTerm;
     rvRes.voteGranted = false;

@@ -5,15 +5,10 @@
 
 #define LOG_DATA_SIZE 128
 
-typedef struct LogData {
-    void    *head;
-    uint16_t size;
-} logData_t;
-
-
 typedef struct LogEntry {
-    uint32_t  term;
-    logData_t data;
+    uint32_t term;
+    uint16_t size;
+    void    *data;
 } logEntry_t;
 
 #endif // ifndef util_h

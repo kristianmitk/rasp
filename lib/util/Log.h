@@ -2,16 +2,31 @@
 #define Log_h
 
 #include <Arduino.h>
-#include "rasp_fs2.h"
+#include "rasp_fs.h"
 #include "util.h"
 
 extern "C" {
     #include "stdint.h"
 }
 
+// using higher values causes memory problems and the boards begin to fail (i.e
+// print stack trace and reset iself)
 #define LOG_SIZE 33000
+
+// we use a fixed array rather than dynamic structures to avoid memory
+// fragmentation
 #define NUM_LOG_ENTRIES 512
 
+/**
+ * The in memory representation of the Log. If you are looking for the
+ * persistent one check the `rasp_fs.h` file there you find an interface to
+ * write the data buffer of this log to a file.
+ * This Log uses a fixed size byte buffer where entries may be stored.
+ * In order to access an entry there is a adress (2-bytes per entry) array that
+ * stores the proper offset where the corresponding entry is stored in the data
+ * block.
+ * [Log description]
+ */
 class Log {
 public:
 
@@ -19,11 +34,7 @@ public:
      * TODO: DOCS
      * [Log description]
      */
-    Log() {
-        // TODO: constructor should read from disk and set proper values
-        nextEntry  = 0;
-        latestTerm = 0;
-    }
+    Log();
 
     /**
      * TODO: DOCS
@@ -43,13 +54,6 @@ public:
      */
     logEntry_t read(uint32_t index);
 
-    /**
-     * TODO: DOCS
-     * [applyToStateMachine description]
-     * @param  index [description]
-     * @return       [description]
-     */
-    void       applyToStateMachine(uint32_t index);
 
     /**
      * TODO: DOCS
@@ -90,12 +94,27 @@ public:
 
 private:
 
+    /**
+     * Retrieves the offset at which position in the byte buffer the start of
+     * the last entry is stored.
+     * @return [description]
+     */
     uint16_t lastEntryAddress();
+
+    /**
+     * [getPointer description]
+     * @param  index [description]
+     * @return       [description]
+     */
     uint8_t* getPointer(uint16_t index);
+
     uint16_t nextEntry;
     uint32_t latestTerm;
 
+    // the actual log byte buffer
     uint8_t data[LOG_SIZE];
-    uint16_t dataPointers[NUM_LOG_ENTRIES];
+
+    // stores for every log entry the proper offset in the data[] buffer
+    uint16_t entryAdress[NUM_LOG_ENTRIES];
 };
 #endif // ifndef Log_h

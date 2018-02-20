@@ -5,7 +5,7 @@
 #include "Log.h"
 #include "messages.h"
 #include "rasp_nodes.h"
-#include "rasp_fs2.h"
+#include "rasp_fs.h"
 extern "C" {
     #include <stdint.h>
 }
@@ -74,7 +74,7 @@ public:
      */
     Message* handleRequestVoteReq(uint32_t term,
                                   uint32_t scandidateID,
-                                  uint8_t  lastLogIndex,
+                                  uint16_t lastLogIndex,
                                   uint32_t lastLogTerm);
 
     /**

@@ -25,10 +25,6 @@ void setup() {
     uint32_t chipID = system_get_chip_id();
     Serial.printf("\nChip ID:%d\n", chipID);
 
-
-    // setup network connection
-    connectToWiFi();
-
     // if analog input pin 0 is unconnected, random analog
     // noise will cause the call to randomSeed() to generate
     // different seed numbers each time the sketch runs.
@@ -37,6 +33,9 @@ void setup() {
 
     // TODO: do we need a Constructor?
     currentState = new ServerState(chipID);
+
+    // setup network connection
+    connectToWiFi();
 
     // open server to listen for incomming packets
     udpServer.start();
