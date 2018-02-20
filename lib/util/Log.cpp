@@ -1,39 +1,144 @@
 #include "Log.h"
 
+/**
+ * In the following the structure of a log entry is visualized:
+ *
+ * +----------------------------------------+
+ * |        |       |                       |
+ * -- term -- size -- data ------------------
+ * 0        4       6                       x = size
+ * |        |       |                       |
+ * +----------------------------------------+
+ *
+ * -> Log entries may have dynamic sizes.
+ */
+ #define TERM_OFFSET 0
+ #define SIZE_OFFSET 4
+ #define DATA_OFFSET 6 // term (4 bytes) + size (2 bytes)
 
-void Log::append(logEntry_t newEntry) {
-    if (nextEntry == LOG_LENGTH) {
-        Serial.printf("[ERR] LOG IS FULL! Appending entry not possible");
-        return;
-    }
-    entries[nextEntry] = newEntry;
-    nextEntry++;
-    RASPFS::getInstance().appendLogEntry(newEntry);
+/**
+ * Returns the term number of a log entry
+ * @param  ptr pointer to a log entry
+ * @return     term number of the log entry the pointer poits to
+ */
+uint32_t getTermNumber(uint8_t *ptr) {
+    return unpack_uint32_t(ptr, 0);
 }
 
-size_t Log::size() {
-    return this->nextEntry;
+/**
+ * Returns the size of the data of a log entry
+ * @param  ptr pointer to a log entry
+ * @return     size of the log entry data the pointer poits to
+ */
+uint16_t getDataSize(uint8_t *ptr) {
+    return unpack_uint16_t(ptr, SIZE_OFFSET);
+}
+
+Log::Log() {
+    nextEntry  = 0;
+    latestTerm = 0;
+
+    size_t currentLogSize = 0;
+    size_t offset         = 0;
+
+    currentLogSize = RASPFS::getInstance().readLog(this->data);
+
+#ifdef RASP_DEBUG
+    Serial.printf("About to rebuild log from file system with size: %lu\n",
+                  currentLogSize);
+#endif // ifdef RASP_DEBUG
+
+    // we iterate through all entries and initialies proper log values (i.e
+    // lastTerm, nextEntry, entryAdress[])
+    while (offset < currentLogSize) {
+#ifdef RASP_DEBUG
+        Serial.printf("Latest term: %lu\nnextEntry: %lu\noffset: %lu\n",
+                      latestTerm,
+                      nextEntry,
+                      offset);
+#endif // ifdef RASP_DEBUG
+        // set proper address of new entry
+        entryAdress[nextEntry++] = offset;
+
+        latestTerm = getTermNumber(&this->data[offset]);
+        offset    += getDataSize(&this->data[offset]) +
+                     DATA_OFFSET;
+    }
+#ifdef RASP_DEBUG
+    Serial.printf("Latest term: %lu\nnextEntry: %lu\noffset: %lu\n",
+                  latestTerm,
+                  nextEntry,
+                  offset);
+#endif // ifdef RASP_DEBUG
+}
+
+void Log::append(uint32_t term, uint8_t *data, uint16_t size) {
+    // only append if we did not reach the entires limit
+    if (nextEntry == 512) {
+        Serial.printf(
+            "[ERR] Log entries size limit of %db reached, cannot append: %lub",
+            NUM_LOG_ENTRIES,
+            size);
+        return;
+    }
+
+    uint16_t offset = this->size();
+
+    // we dont store the next value if it would exceed our data buffer
+    if (this->size() + size + DATA_OFFSET > LOG_SIZE) {
+        Serial.printf(
+            "[ERR] Log is full! Cannot append data.\n \
+            New data size: %lub (+ 6 for term/size), used log size: %lub",
+            size,
+            offset);
+        return;
+    }
+
+    uint8_t *p = &this->data[offset];
+
+    // set term
+    pack_uint32_t(p, TERM_OFFSET, term);
+
+    // set size
+    pack_uint16_t(p, SIZE_OFFSET, size);
+
+    // set data
+    memcpy(p + DATA_OFFSET, data, size);
+    this->entryAdress[nextEntry++] = offset;
+
+    latestTerm = term;
+
+    RASPFS::getInstance().appendLogEntry(p, size + DATA_OFFSET);
+}
+
+uint16_t Log::size() {
+    uint16_t adr = lastEntryAddress();
+
+    return getDataSize(&this->data[adr]) + adr + DATA_OFFSET;
 }
 
 uint32_t Log::lastStoredTerm() {
     return this->latestTerm;
 }
 
-logEntry_t Log::read(uint32_t index) {
-    return entries[abs(index) % LOG_LENGTH];
+uint16_t Log::lastEntryAddress() {
+    return entryAdress[lastIndex()];
 }
 
-logEntry_t Log::lastEntry() {
-    uint8_t index = this->nextEntry;
-
-    return read(index == 0 ? 0 : index - 1);
+uint16_t Log::lastIndex() {
+    // cover initial 0 state
+    return this->nextEntry ? this->nextEntry - 1 : this->nextEntry;
 }
 
 void Log::printLastEntry() {
-    logEntry_t last = lastEntry();
+    uint8_t *p = this->getPointer(lastIndex());
 
-    Serial.printf("LOG index: %d\nTerm:%lu, Val: %d\n",
-                  this->nextEntry,
-                  last.term,
-                  unpack_uint8_t(last.data, 0));
+    Serial.printf("LOG index: %lu\nTerm:%lu, Val: %lu\n",
+                  lastIndex(),
+                  getTermNumber(p),
+                  unpack_uint8_t(p + DATA_OFFSET, 0));
+}
+
+uint8_t * Log::getPointer(uint16_t index) {
+    return &this->data[this->entryAdress[index]];
 }

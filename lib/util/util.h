@@ -7,7 +7,8 @@
 
 typedef struct LogEntry {
     uint32_t term;
-    uint8_t  data[LOG_DATA_SIZE];
+    uint16_t size;
+    void    *data;
 } logEntry_t;
 
 #endif // ifndef util_h

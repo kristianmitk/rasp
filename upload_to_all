@@ -1,0 +1,20 @@
+#!/bin/bash
+
+PARAM1="$1";
+PARAM2="$2";
+
+
+if [[ "$PARAM2" != "-n" ]]; then
+    for device in /dev/cu.usbserial*; do
+        echo "Starting upload of project sketch to $device"
+        pio run -t upload --upload-port $device
+    done
+fi
+
+if [[ "$PARAM1" == "-s" ]]; then
+    screen -d -m -S rasp -t "random" bash -c 'clear;'
+    for device in /dev/cu.usbserial*; do
+        screen -r rasp -X screen -t "$device" bash -c "clear;pio device monitor --port $device --baud 115200"
+    done
+    screen -r rasp
+fi

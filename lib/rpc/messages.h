@@ -7,8 +7,8 @@ extern "C" {
     #include <stdint.h>
 }
 
-#define REQ_VOTE_REQ_MSG_SIZE 20
-#define REQ_VOTE_RES_MSG_SIZE 9
+#define REQ_VOTE_REQ_MSG_SIZE 14
+#define REQ_VOTE_RES_MSG_SIZE 6
 
 /**
  * This enum is used to identify the message. Every incoming packet
@@ -26,7 +26,11 @@ public:
         RequestVoteReq   = 0,
         RequestVoteRes   = 1,
         AppendEntriesReq = 2,
-        AppendEntriesRes = 3
+        AppendEntriesRes = 3,
+
+        // to find out when we bounce out of index in
+        // `createMessage(uint8_t *packet)`
+        lastVal
     } type;
 
     /**
@@ -49,7 +53,7 @@ public:
 
     uint32_t term;
     uint32_t candidateID;
-    uint32_t lastLogIndex;
+    uint16_t lastLogIndex;
     uint32_t lastLogTerm;
 
     /**
@@ -98,16 +102,48 @@ public:
 /**
  * TODO: DOCS
  */
-class AppendEntriesRequestMessage : public Message {
+class AppendEntriesRequest : public Message {
+public:
+
     // TODO: add missing properties
+
+    /**
+     * TODO: DOCS
+     * [AppendEntriesRequest description]
+     * @param packet [description]
+     */
+    AppendEntriesRequest(uint8_t *packet);
+    AppendEntriesRequest();
+    virtual uint8_t* marshall();
+    virtual void     serialPrint();
 };
 
 /**
  * TODO: DOCS
  */
-class AppendEntriesResponseMessage : public Message {
+class AppendEntriesResponse : public Message {
     // TODO: add missing properties
+
+    virtual uint8_t* marshall();
+    virtual void     serialPrint();
 };
 
+// TODO: DOCUMENT WHATS GOING ON HERE - TOO LATE NOW ':D
+
+
+static RequestVoteRequest   rvReq;
+static RequestVoteResponse  rvRes;
+static AppendEntriesRequest aeReq;
+
+// AppendEntriesResponse aeRes;
+
+
+Message* a(uint8_t *packet); // TODO: rename function names
+
+Message* b(uint8_t *packet); // TODO: rename function names
+
+Message* c(uint8_t *packet); // TODO: rename function names
+
+Message* createMessage(uint8_t *packet);
 
 #endif // ifndef messages_h
