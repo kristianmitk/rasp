@@ -8,8 +8,9 @@
 
 #define REQUIRED_VOTES (RASP_NUM_SERVERS / 2 + 1)
 
-ServerState::ServerState(uint32_t id) {
-    selfID          = id;
+ServerState::ServerState() {}
+
+void ServerState::initialize() {
     receivedVotes   = 0;
     currentTerm     = RASPFS::getInstance().read(RASPFS::CURRENT_TERM);
     votedFor        = RASPFS::getInstance().read(RASPFS::VOTED_FOR);
@@ -20,8 +21,15 @@ ServerState::ServerState(uint32_t id) {
     electionTimeout = generateTimeout();
     lastTimeout     = millis();
 
+    int idx = 0;
+
+    for (int i; i < RASP_NUM_SERVERS; i++) {
+        if (servers[i].ID != chipID) {
+            followerStates[idx++].id = servers[i].ID;
+        }
+    }
+
     this->serialPrint();
-    Serial.println();
 }
 
 Message * ServerState::dispatch(Message *msg) {
@@ -60,7 +68,7 @@ Message * ServerState::handleRequestVoteReq(uint32_t term,
         return &rvRes;
     }
 
-    // if (!this->votedFor || (this->votedFor != selfID) ||
+    // if (!this->votedFor || (this->votedFor != chipID) ||
     //     ((this->role == CANDIDATE) && (this->currentTerm < term)))
     if (!this->votedFor || (this->currentTerm < term)) {
         currentTerm = RASPFS::getInstance().write(RASPFS::CURRENT_TERM, term);
@@ -108,17 +116,19 @@ void ServerState::handleRequestVoteRes(uint32_t term, uint8_t  voteGranted) {
                 this->receivedVotes++;
                 checkGrantedVotes();
                 return;
+
+#ifdef RASP_DEBUG
             } else {
-                // TODO: remove debug logging
-                Serial.printf("TERMS; own:%lu, received: %lu\n",
+                Serial.printf("Obsolete message: own term:%lu, received: %lu\n",
                               this->currentTerm,
                               term);
+#endif // ifdef RASP_DEBUG
             }
         }
 
         if (this->currentTerm < term) {
-            this->currentTerm = term;
-            role              = FOLLOWER;
+            currentTerm = RASPFS::getInstance().write(RASPFS::CURRENT_TERM, term);
+            role        = FOLLOWER;
         }
     }
 }
@@ -127,8 +137,7 @@ void ServerState::handleRequestVoteRes(Message *msg) {
     RequestVoteResponse *p = (RequestVoteResponse *)msg;
 
     p->serialPrint();
-    return handleRequestVoteRes(p->term,
-                                p->voteGranted);
+    return handleRequestVoteRes(p->term, p->voteGranted);
 }
 
 Message * ServerState::checkElectionTimeout() {
@@ -147,11 +156,11 @@ Message * ServerState::checkElectionTimeout() {
 
 
         // starting a new election always results in first voting for itself
-        votedFor      = RASPFS::getInstance().write(RASPFS::VOTED_FOR, selfID);
+        votedFor      = RASPFS::getInstance().write(RASPFS::VOTED_FOR, chipID);
         receivedVotes = 1;
 
         rvReq.term         = this->currentTerm;
-        rvReq.candidateID  = this->selfID;
+        rvReq.candidateID  = chipID;
         rvReq.lastLogIndex = this->log->lastIndex();
         rvReq.lastLogTerm  = this->log->lastStoredTerm();
 
@@ -169,8 +178,14 @@ void ServerState::checkGrantedVotes() {
         Serial.printf("ELECTED LEADER!\n", receivedVotes);
 
         // TODO: set nextIndex/matchIndex for all followes
+
+        for (int i = 0; i < NUM_FOLLOWER_STATES; i++) {
+            followerStates[i].matchIndex = 0;
+            followerStates[i].nextIndex  = log->lastIndex() + 1;
+        }
+
         role             = LEADER;
-        heartbeatTimeout = 75; // random(50, 100)
+        heartbeatTimeout = 75;
         lastTimeout      = millis();
         Serial.printf("New heartbeatTimeout: %lu\ncurrent millis: %lu\n",
                       heartbeatTimeout,
@@ -228,7 +243,7 @@ void ServerState::serialPrint() {
                   "electionTimeout",
                   "lastTimeout"
                   );
-    Serial.printf("%-25lu%-25lu%-25lu%-25lu\n",
+    Serial.printf("%-25lu%-25lu%-25lu%-25lu\n\n",
                   currentTerm,
                   votedFor,
                   electionTimeout,

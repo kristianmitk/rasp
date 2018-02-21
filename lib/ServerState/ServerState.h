@@ -3,12 +3,21 @@
 
 #include "Arduino.h"
 #include "Log.h"
+#include "common.h"
 #include "messages.h"
 #include "rasp_nodes.h"
 #include "rasp_fs.h"
 extern "C" {
     #include <stdint.h>
 }
+
+#define NUM_FOLLOWER_STATES RASP_NUM_SERVERS - 1
+
+typedef struct followerState {
+    uint32_t id;
+    uint16_t nextIndex;
+    uint16_t matchIndex;
+} followerState;
 
 
 /**
@@ -36,7 +45,17 @@ public:
      * [ServerState description]
      * @param id [description]
      */
-    ServerState(uint32_t id);
+    ServerState();
+
+    /**
+     * This function handles actually what the empty constructor could do.
+     * But since the ServerState is in the global scope of the `main.cpp`
+     * function and at the moment we initialize this object the Serial class is
+     * not started (i.e Serial.begin() needs to be executed) there is nothing
+     * printed to the serial monitor. Because of that we use this separate
+     * function and call it after Serial.begin() was successfully executed.
+     */
+    void initialize();
 
     /**
      * TODO: DOCS
@@ -168,11 +187,9 @@ private:
     uint32_t lastApplied;
 
     // -------- volatile state as leader
-    uint32_t nextIndex[];
-    uint32_t matchIndex[];
+    followerState followerStates[NUM_FOLLOWER_STATES];
 
     uint16_t electionTimeout;
-
     uint16_t heartbeatTimeout;
 };
 

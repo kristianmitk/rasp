@@ -137,13 +137,6 @@ static AppendEntriesRequest aeReq;
 
 // AppendEntriesResponse aeRes;
 
-
-Message* a(uint8_t *packet); // TODO: rename function names
-
-Message* b(uint8_t *packet); // TODO: rename function names
-
-Message* c(uint8_t *packet); // TODO: rename function names
-
 Message* createMessage(uint8_t *packet);
 
 #endif // ifndef messages_h
