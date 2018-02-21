@@ -17,7 +17,7 @@ typedef struct followerState {
     uint32_t id;
     uint16_t nextIndex;
     uint16_t matchIndex;
-} followerState;
+} followerState_t;
 
 
 /**
@@ -179,9 +179,17 @@ private:
 
     /**
      * TODO: DOCS
+     * [getFollower description]
+     * @param  id [description]
+     * @return    [description]
+     */
+    followerState_t getFollower(uint32_t id);
+
+    /**
+     * TODO: DOCS
      * [ServerState::checkGrantedVotes description]
      */
-    void checkGrantedVotes();
+    void            checkGrantedVotes();
 
     // own chipID used as an ID to identify a server
     uint32_t selfID;
@@ -209,7 +217,7 @@ private:
     uint32_t lastApplied;
 
     // -------- volatile state as leader
-    followerState followerStates[NUM_FOLLOWERS];
+    followerState_t followerStates[NUM_FOLLOWERS];
 
     uint16_t electionTimeout;
     uint16_t heartbeatTimeout;

@@ -3,15 +3,23 @@
 
 // TODO: outsource boundaries to a config file
 #define MIN_ELECTION_TIMEOUT 200
-#define MAX_ELECTION_TIMEOUT 350
+#define MAX_ELECTION_TIMEOUT 500
 #define generateTimeout() random(MIN_ELECTION_TIMEOUT, MAX_ELECTION_TIMEOUT)
 
 #define REQUIRED_VOTES (RASP_NUM_SERVERS / 2 + 1)
+
+
+followerState_t ServerState::getFollower(uint32_t id) {
+    for (int i = 0; i < NUM_FOLLOWERS; i++) {
+        if (followerStates[i].id == id) return followerStates[i];
+    }
+}
 
 ServerState::ServerState() {}
 
 void ServerState::initialize() {
     EMPTY_HEARTBEAT = true;
+
     receivedVotes   = 0;
     currentTerm     = RASPFS::getInstance().read(RASPFS::CURRENT_TERM);
     votedFor        = RASPFS::getInstance().read(RASPFS::VOTED_FOR);
@@ -24,7 +32,7 @@ void ServerState::initialize() {
 
     int idx = 0;
 
-    for (int i; i < RASP_NUM_SERVERS; i++) {
+    for (int i = 0; i < RASP_NUM_SERVERS; i++) {
         if (servers[i].ID != chipID) {
             followerStates[idx++].id = servers[i].ID;
         }
@@ -261,7 +269,41 @@ void ServerState::handleAppendEntriesRes(Message *msg) {
 
     p->serialPrint();
 
-    // TODO: implement handle
+    if (p->term > currentTerm) {
+        currentTerm = RASPFS::getInstance().write(RASPFS::CURRENT_TERM, p->term);
+        this->role  = FOLLOWER;
+        return;
+    }
+    followerState_t fstate = getFollower(p->serverId);
+
+    if (!p->success) {
+        // should never be the case that we dont have a success and nextIndex <
+        // 1
+        if (fstate.nextIndex) {
+            fstate.nextIndex--;
+            Serial.printf(
+                "Would send a decremented AE to: %lu\nnextIndex:%d, matchIndex:%d\n",
+                fstate.id,
+                fstate.nextIndex,
+                fstate.matchIndex);
+
+            // TODO: send a decremented append entries message
+        }
+    } else {
+        fstate.nextIndex++;
+        fstate.matchIndex++;
+
+        if (fstate.nextIndex <= this->log->lastIndex()) {
+            Serial.printf(
+                "Would send a incremented AE to: %lu\nnextIndex:%d, matchIndex:%d\n",
+                fstate.id,
+                fstate.nextIndex,
+                fstate.matchIndex
+                );
+
+            // TODO: send a incremented append entries message
+        }
+    }
 }
 
 void ServerState::resetElectionTimeout() {
