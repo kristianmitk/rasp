@@ -46,7 +46,15 @@ void loop() {
     currentState.DEBUG_APPEND_LOG();
 
     if (currentState.checkHeartbeatTimeout()) {
-        udpServer.broadcastHeartbeat();
+        if (currentState.EMPTY_HEARTBEAT) {
+            udpServer.broadcastHeartbeat(
+                currentState.generateEmptyHeartBeat()->marshall());
+        } else {
+            // TODO: while loop to send custom appendEntry requests to all
+            // followes
+            Serial.printf("Should send individual messages\n");
+            currentState.EMPTY_HEARTBEAT = true;
+        }
         Serial.printf("\n------------------ %lu ------------------\n", numLoops);
     }
 
@@ -56,10 +64,11 @@ void loop() {
     }
 
     if (msg = udpServer.checkForMessage()) {
+        // dispatcher returns only responses that have fixed sizes
         Message *res = currentState.dispatch(msg);
 
         if (res) {
-            udpServer.sendPacket(res->marshall(), REQ_VOTE_RES_MSG_SIZE);
+            udpServer.sendPacket(res->marshall(), res->size());
         }
         Serial.printf("\n------------------ %lu ------------------\n", numLoops);
         return;

@@ -219,6 +219,7 @@ private:
 
 #endif // ifdef INITIAL_SETUP
 
+        // TODO: check for empty files and set proper initial values
         logPart = 1;
         this->openLog();
     }

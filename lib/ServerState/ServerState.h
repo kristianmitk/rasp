@@ -11,7 +11,7 @@ extern "C" {
     #include <stdint.h>
 }
 
-#define NUM_FOLLOWER_STATES RASP_NUM_SERVERS - 1
+#define NUM_FOLLOWERS RASP_NUM_SERVERS - 1
 
 typedef struct followerState {
     uint32_t id;
@@ -122,36 +122,58 @@ public:
      */
     void handleRequestVoteRes(Message *msg);
 
+
+    /**
+     * TODO: DOCS
+     * [handleAppendEntriesReq description]
+     * @param  msg [description]
+     * @return     [description]
+     */
+    Message* handleAppendEntriesReq(Message *msg);
+
+    /**
+     * TODO: DOCS
+     * [handleAppendEntriesRes description]
+     * @param  msg [description]
+     * @return     [description]
+     */
+    void     handleAppendEntriesRes(Message *msg);
+
     /**
      * TODO: DOCS
      * [resetElectionTimeout description]
      */
-    void resetElectionTimeout();
-
-    /**
-     * TODO: DOCS
-     * [checkHeartbeatTimeout description]
-     * @return [description]
-     */
-    void resetElectionTimeout(uint8_t placeholder);
-
+    void     resetElectionTimeout();
 
     /**
      * TODO: DOCS
      * [getRole description]
      * @return [description]
      */
-    Role    getRole();
+    Role     getRole();
 
     /**
      * TODO: DOCS
      * [checkHeartbeatTimeout description]
      * @return [description]
      */
-    uint8_t checkHeartbeatTimeout();
+    uint8_t  checkHeartbeatTimeout();
+
+    /**
+     * TODO: DOCS
+     * [ServerState::generateEmptyHeartBeat description]
+     * @return [description]
+     */
+    Message* generateEmptyHeartBeat();
 
 
-    void    DEBUG_APPEND_LOG();
+    void     DEBUG_APPEND_LOG();
+
+    /**
+     * TODO: make private
+     * [checkGrantedVotes description]
+     */
+    bool EMPTY_HEARTBEAT;
 
 private:
 
@@ -187,7 +209,7 @@ private:
     uint32_t lastApplied;
 
     // -------- volatile state as leader
-    followerState followerStates[NUM_FOLLOWER_STATES];
+    followerState followerStates[NUM_FOLLOWERS];
 
     uint16_t electionTimeout;
     uint16_t heartbeatTimeout;

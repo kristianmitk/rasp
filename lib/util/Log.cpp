@@ -125,6 +125,31 @@ uint16_t Log::lastEntryAddress() {
     return entryAdress[lastIndex()];
 }
 
+logEntry_t Log::getEntry(uint16_t index) {
+    logEntry_t entry;
+
+    // empty size suggests that this entry does not exist
+    entry.size = 0;
+
+    // handle initial case where log is empty
+    // TODO: rather use a pointer, but whats with memory fragmentation?
+    if (this->nextEntry == 0) {
+        entry.size = 1;
+        entry.term = 0;
+        return entry;
+    }
+
+    if (lastIndex() >= index) {
+        uint8_t *p = getPointer(index);
+
+        entry.term = getTermNumber(p);
+        entry.size = getDataSize(p);
+        entry.data = p + DATA_OFFSET;
+    }
+
+    return entry;
+}
+
 uint16_t Log::lastIndex() {
     // cover initial 0 state
     return this->nextEntry ? this->nextEntry - 1 : this->nextEntry;

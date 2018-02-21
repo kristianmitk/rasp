@@ -11,6 +11,7 @@
 ServerState::ServerState() {}
 
 void ServerState::initialize() {
+    EMPTY_HEARTBEAT = true;
     receivedVotes   = 0;
     currentTerm     = RASPFS::getInstance().read(RASPFS::CURRENT_TERM);
     votedFor        = RASPFS::getInstance().read(RASPFS::VOTED_FOR);
@@ -42,14 +43,18 @@ Message * ServerState::dispatch(Message *msg) {
         return NULL;
 
     case Message::AppendEntriesReq:
-        Serial.println("<3");
-        resetElectionTimeout(1);
-        return NULL;
+        return handleAppendEntriesReq(msg);
 
     case Message::AppendEntriesRes:
 
-        // TODO: implement
-        break;
+        handleAppendEntriesRes(msg);
+        return NULL;
+
+    default:
+#ifdef RASP_DEBUG
+        Serial.printf("[ERR] received unknown message type: %d", msg->type);
+#endif // ifdef RASP_DEBUG
+        return NULL;
     }
     return NULL;
 }
@@ -65,6 +70,7 @@ Message * ServerState::handleRequestVoteReq(uint32_t term,
     // our state is more up to date than the candidate state
     if (term <= this->currentTerm) {
         Serial.println("VoteGranted = false");
+
         return &rvRes;
     }
 
@@ -72,6 +78,7 @@ Message * ServerState::handleRequestVoteReq(uint32_t term,
     //     ((this->role == CANDIDATE) && (this->currentTerm < term)))
     if (!this->votedFor || (this->currentTerm < term)) {
         currentTerm = RASPFS::getInstance().write(RASPFS::CURRENT_TERM, term);
+        role        = FOLLOWER;
         rvRes.term  = term;
 
         // SAFETY RULES (§5.2, §5.4)
@@ -80,12 +87,9 @@ Message * ServerState::handleRequestVoteReq(uint32_t term,
         {
             Serial.println("VoteGranted = true");
 
-            role     = FOLLOWER;
             votedFor = RASPFS::getInstance().write(RASPFS::VOTED_FOR,
                                                    candidateID);
             rvRes.voteGranted = true;
-
-            resetElectionTimeout();
         }
     } else {
         Serial.printf("Self candidate in term: %d? %d\n",
@@ -93,7 +97,9 @@ Message * ServerState::handleRequestVoteReq(uint32_t term,
                       ((this->role == CANDIDATE) &&
                        (this->currentTerm == term)));
         Serial.println("VoteGranted = false - 2nd condition");
+        return &rvRes;
     }
+    resetElectionTimeout();
     return &rvRes;
 }
 
@@ -179,7 +185,7 @@ void ServerState::checkGrantedVotes() {
 
         // TODO: set nextIndex/matchIndex for all followes
 
-        for (int i = 0; i < NUM_FOLLOWER_STATES; i++) {
+        for (int i = 0; i < NUM_FOLLOWERS; i++) {
             followerStates[i].matchIndex = 0;
             followerStates[i].nextIndex  = log->lastIndex() + 1;
         }
@@ -193,18 +199,79 @@ void ServerState::checkGrantedVotes() {
     }
 }
 
+Message * ServerState::handleAppendEntriesReq(Message *msg) {
+    AppendEntriesRequest *p = (AppendEntriesRequest *)msg;
+
+    p->serialPrint();
+
+#ifdef RASP_DEBUG
+    Serial.printf("Handling AppendEntries RPC request\n");
+#endif // ifdef RASP_DEBUG
+
+    aeRes.term     = currentTerm;
+    aeRes.success  = 0;
+    aeRes.serverId = chipID;
+
+    // (§5.1)
+    if (currentTerm > p->term) {
+        return &aeRes;
+    }
+
+    if (p->term > currentTerm) {
+#ifdef RASP_DEBUG
+        Serial.printf("p->term > currentTerm\n");
+#endif // ifdef RASP_DEBUG
+
+        currentTerm = RASPFS::getInstance().write(RASPFS::CURRENT_TERM, p->term);
+        aeRes.term  = currentTerm;
+    }
+    role = FOLLOWER;
+
+    logEntry_t prevEntry = this->log->getEntry(p->prevLogIndex);
+
+    // check if entry exist at previous log index send from leader
+    if (prevEntry.size) {
+#ifdef RASP_DEBUG
+        Serial.printf("Entry exist! Size of data: %lu and term:%lu\n",
+                      prevEntry.size,
+                      prevEntry.term);
+#endif // ifdef RASP_DEBUG
+
+        // (§5.3)
+        if (prevEntry.term == p->prevLogTerm) {
+#ifdef RASP_DEBUG
+            Serial.printf("Appending new entry\n");
+#endif // ifdef RASP_DEBUG
+            this->log->append(p->term, p->data, p->dataSize);
+
+            aeRes.success = 1;
+            resetElectionTimeout();
+        } else {
+#ifdef RASP_DEBUG
+            Serial.printf("prevEntry.term != p->prevLogTerm\n");
+#endif // ifdef RASP_DEBUG
+            return &aeRes;
+        }
+    }
+    return &aeRes;
+}
+
+void ServerState::handleAppendEntriesRes(Message *msg) {
+    AppendEntriesResponse *p = (AppendEntriesResponse *)msg;
+
+    p->serialPrint();
+
+    // TODO: implement handle
+}
+
 void ServerState::resetElectionTimeout() {
     electionTimeout = generateTimeout();
-    lastTimeout     = millis();
+
+    lastTimeout = millis();
 
     Serial.printf("New timeout: %lu\ncurrent millis: %lu\n",
                   electionTimeout,
                   lastTimeout);
-}
-
-void ServerState::resetElectionTimeout(uint8_t placeholder) {
-    role = FOLLOWER;
-    resetElectionTimeout();
 }
 
 ServerState::Role ServerState::getRole() {
@@ -214,11 +281,23 @@ ServerState::Role ServerState::getRole() {
 uint8_t ServerState::checkHeartbeatTimeout() {
     if (this->role != LEADER) return 0;
 
-    if (millis() > lastTimeout + heartbeatTimeout) {
-        lastTimeout = millis();
+    uint32_t curr = millis();
+
+    if (curr > lastTimeout + heartbeatTimeout) {
+        lastTimeout = curr;
         return 1;
     }
     return 0;
+}
+
+Message * ServerState::generateEmptyHeartBeat() {
+    aeReq.term         = currentTerm;
+    aeReq.leaderId     = chipID;
+    aeReq.prevLogIndex = this->log->lastIndex();
+    aeReq.prevLogTerm  = this->log->lastStoredTerm();
+    aeReq.leaderCommit = commitIndex;
+    aeReq.dataSize     = 0;
+    return &aeReq;
 }
 
 void ServerState::DEBUG_APPEND_LOG() {
@@ -232,6 +311,7 @@ void ServerState::DEBUG_APPEND_LOG() {
 
             this->log->append(currentTerm, entryData, entrySize);
             this->log->printLastEntry();
+            this->EMPTY_HEARTBEAT = false;
         }
     }
 }

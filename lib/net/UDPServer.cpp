@@ -5,27 +5,31 @@ void UDPServer::start() {
     Serial.printf("UDP Server bind to port: %d\n", UDP_PORT);
 }
 
+// TODO: use one broadcast Message function
 void UDPServer::broadcastRequestVoteRPC(uint8_t *message) {
     for (int i = 0; i < RASP_NUM_SERVERS; i++) {
-        Udp.beginPacket(servers[i].IP, RASP_DEFAULT_PORT);
-        Udp.write((char *)message, REQ_VOTE_REQ_MSG_SIZE);
-        Udp.endPacket();
+        if (servers[i].ID != chipID) {
+            Udp.beginPacket(servers[i].IP, RASP_DEFAULT_PORT);
+            Udp.write((char *)message, REQ_VOTE_REQ_MSG_SIZE);
+            Udp.endPacket();
+        }
     }
     free(message);
 }
 
-void UDPServer::broadcastHeartbeat() {
+// TODO: use one broadcast Message function
+void UDPServer::broadcastHeartbeat(uint8_t *message) {
     Serial.printf("Broadcasting heartbeat\n");
 
-    uint8_t buf[4];
-    pack_uint32_t(buf, 0, Message::AppendEntriesReq);
-
     for (int i = 0; i < RASP_NUM_SERVERS; i++) {
-        Serial.printf("Sending heartbeat to: %s\n", servers[i].IP);
-        Udp.beginPacket(servers[i].IP, RASP_DEFAULT_PORT);
-        Udp.write((char *)buf, 4);
-        Udp.endPacket();
+        if (servers[i].ID != chipID) {
+            Serial.printf("Sending heartbeat to: %s\n", servers[i].IP);
+            Udp.beginPacket(servers[i].IP, RASP_DEFAULT_PORT);
+            Udp.write((char *)message, EMPTY_HEARTBEAT_MSG_SIZE);
+            Udp.endPacket();
+        }
     }
+    free(message);
 }
 
 void UDPServer::sendPacket(uint8_t *buffer, size_t size) {
@@ -40,21 +44,21 @@ void UDPServer::sendPacket(uint8_t *buffer, size_t size) {
 }
 
 size_t UDPServer::parse() {
-    int packetSize = Udp.parsePacket();
+    this->currentPacketSize = Udp.parsePacket();
 
-    if (packetSize) {
+    if (currentPacketSize) {
         clearBuffer();
 
         // the IP is cached for 'one round' to respond after data is
         // processed
         sender = Udp.remoteIP();
         Serial.printf("Received %d bytes from %s\n",
-                      packetSize,
+                      currentPacketSize,
                       sender.toString().c_str());
 
         int len = Udp.read(packetBuffer, UDP_INCOMING_BUFFER_SIZE);
     }
-    return packetSize;
+    return currentPacketSize;
 }
 
 uint8_t * UDPServer::checkForPacket() {
@@ -62,7 +66,7 @@ uint8_t * UDPServer::checkForPacket() {
 }
 
 Message * UDPServer::checkForMessage() {
-    return this->parse() ? createMessage(packetBuffer) : NULL;
+    return this->parse() ? createMessage(packetBuffer, currentPacketSize) : NULL;
 }
 
 void UDPServer::clearBuffer() {

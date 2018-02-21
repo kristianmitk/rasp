@@ -3,12 +3,14 @@
 
 #include "Arduino.h"
 #include "WiFiUdp.h"
+#include "common.h"
 #include "messages.h"
 #include "rasp_nodes.h"
 #include "marshall.h"
 
 // TODO: outsource constants
-#define UDP_INCOMING_BUFFER_SIZE 128 // TODO: SET TO MAX PACKET SIZE
+#define UDP_INCOMING_BUFFER_SIZE 529 // 512b for entries data + 17 for the other
+                                     // stuff needed in a AppendEntries req
 #define UDP_PORT 1337
 
 class UDPServer {
@@ -32,7 +34,7 @@ public:
      * TODO: DOCS
      * [broadcastHeartbeat description]
      */
-    void     broadcastHeartbeat();
+    void     broadcastHeartbeat(uint8_t *message);
 
     /**
      * TODO: DOCS
@@ -67,6 +69,7 @@ private:
 
     WiFiUDP Udp;
     uint8_t packetBuffer[UDP_INCOMING_BUFFER_SIZE];
+    uint16_t currentPacketSize;
 
     /**
      * TODO: DOCS

@@ -11,7 +11,7 @@ extern "C" {
 
 // using higher values causes memory problems and the boards begin to fail (i.e
 // print stack trace and reset iself)
-#define LOG_SIZE 33000
+#define LOG_SIZE 30000
 
 // we use a fixed array rather than dynamic structures to avoid memory
 // fragmentation
@@ -90,6 +90,12 @@ public:
      */
     uint16_t   lastIndex();
 
+    /**
+     * TODO: DOCS
+     * [getEntry description]
+     * @param  index [description]
+     * @return       [description]
+     */
     logEntry_t getEntry(uint16_t index);
 
 private:
