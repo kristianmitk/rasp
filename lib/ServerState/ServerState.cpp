@@ -1,8 +1,9 @@
 #include "ServerState.h"
 
 // TODO: outsource boundaries to a config file
-#define MIN_ELECTION_TIMEOUT 200
-#define MAX_ELECTION_TIMEOUT 500
+#define MIN_ELECTION_TIMEOUT 300
+#define MAX_ELECTION_TIMEOUT 600
+#define HEARTBEAT_TIMEOUT 100
 #define generateTimeout() random(MIN_ELECTION_TIMEOUT, MAX_ELECTION_TIMEOUT)
 
 #define REQUIRED_VOTES (RASP_NUM_SERVERS / 2 + 1)
@@ -29,7 +30,9 @@ void ServerState::initialize() {
 
     for (int i = 0; i < RASP_NUM_SERVERS; i++) {
         if (servers[i].ID != chipID) {
-            followerStates[idx++].id = servers[i].ID;
+            followerStates[idx].id = servers[i].ID;
+            memcpy(followerStates[idx].IP, servers[i].IP, 4);
+            idx++;
         }
     }
 
@@ -78,9 +81,9 @@ void ServerState::handleMessage() {
         msg =  NULL;
     }
 
-    if (!msg) return;
+    if (msg) UDPServer::getInstance().sendPacket(msg->marshall(), msg->size());
 
-    UDPServer::getInstance().sendPacket(msg->marshall(), msg->size());
+    Serial.printf("End at: %lu\n", millis());
 }
 
 // TODO: set persistent values
@@ -177,10 +180,7 @@ void ServerState::checkElectionTimeout() {
 
     if (millis() > lastTimeout + electionTimeout) {
         RASPFS::getInstance().write(RASPFS::CURRENT_TERM, (++this->currentTerm));
-        Serial.printf(
-            "--------------------------- %lu ---------------------------\n",
-            eventNumber++
-            );
+        printEventHeader();
         Serial.printf(
             "\n[WARN] Election timout. Starting a new election on term: %d\n",
             this->currentTerm);
@@ -212,13 +212,13 @@ void ServerState::checkGrantedVotes() {
         // TODO: set nextIndex/matchIndex for all followes
 
         for (int i = 0; i < NUM_FOLLOWERS; i++) {
-            followerStates[i].matchIndex = 0;
-            followerStates[i].nextIndex  = log->lastIndex() + 1;
+            followerStates[i].matchIndex  = 0;
+            followerStates[i].nextIndex   = log->lastIndex() + 1;
+            followerStates[i].lastTimeout = millis();
         }
 
         role             = LEADER;
-        heartbeatTimeout = 75;
-        lastTimeout      = millis();
+        heartbeatTimeout = HEARTBEAT_TIMEOUT;
         Serial.printf("New heartbeatTimeout: %lu\ncurrent millis: %lu\n",
                       heartbeatTimeout,
                       lastTimeout);
@@ -230,9 +230,7 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
 
     p->serialPrint();
 
-#ifdef RASP_DEBUG
     Serial.printf("Handling AppendEntries RPC request\n");
-#endif // ifdef RASP_DEBUG
 
     aeRes.term     = currentTerm;
     aeRes.success  = 0;
@@ -244,9 +242,7 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
     }
 
     if (p->term > currentTerm) {
-#ifdef RASP_DEBUG
         Serial.printf("p->term > currentTerm\n");
-#endif // ifdef RASP_DEBUG
 
         currentTerm = RASPFS::getInstance().write(RASPFS::CURRENT_TERM, p->term);
         aeRes.term  = currentTerm;
@@ -257,32 +253,28 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
 
     // check if entry exist at previous log index send from leader
     if (prevEntry.size) {
-#ifdef RASP_DEBUG
         Serial.printf("Entry exist! Size of data: %lu and term:%lu\n",
                       prevEntry.size,
                       prevEntry.term);
-#endif // ifdef RASP_DEBUG
 
         // (§5.3)
         if (prevEntry.term == p->prevLogTerm) {
-#ifdef RASP_DEBUG
             Serial.printf("Appending new entry\n");
-#endif // ifdef RASP_DEBUG
-            this->log->append(p->term, p->data, p->dataSize);
+
+            if (p->dataSize) this->log->append(p->term, p->data, p->dataSize);
 
             aeRes.success = 1;
-            resetElectionTimeout();
         } else {
-#ifdef RASP_DEBUG
             Serial.printf("prevEntry.term != p->prevLogTerm\n");
-#endif // ifdef RASP_DEBUG
-            return &aeRes;
         }
     }
+    resetElectionTimeout();
     return &aeRes;
 }
 
 void ServerState::handleAppendEntriesRes(Message *msg) {
+    if (role != LEADER) return;
+
     AppendEntriesResponse *p = (AppendEntriesResponse *)msg;
 
     p->serialPrint();
@@ -339,7 +331,20 @@ ServerState::Role ServerState::getRole() {
 }
 
 void ServerState::checkHeartbeatTimeouts() {
-    // if (this->role != LEADER) return 0;
+    if (this->role != LEADER) return;
+
+    for (int i = 0; i < NUM_FOLLOWERS; i++) {
+        if (followerStates[i].lastTimeout + heartbeatTimeout < millis()) {
+            printEventHeader();
+            Serial.printf("Sending AE Req\n");
+            Message *msg = generateEmptyHeartBeat();
+            UDPServer::getInstance().sendPacket(msg->marshall(),
+                                                msg->size(),
+                                                followerStates[i].IP);
+            followerStates[i].lastTimeout = millis();
+        }
+    }
+
     //
     // uint32_t curr = millis();
     //

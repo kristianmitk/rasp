@@ -6,12 +6,10 @@ extern "C" {
 }
 
 #define RASP_NUM_SERVERS  2
-#define RASP_DEFAULT_PORT 1337
-
 
 typedef struct rasp_server {
-    const char *IP;
-    uint32_t    ID;
+    uint8_t  IP[4];
+    uint32_t ID;
 } rasp_server;
 
 /**
@@ -35,11 +33,11 @@ typedef struct rasp_server {
 
 // NOTE: server running this code is included as well
 const rasp_server servers[RASP_NUM_SERVERS] = {
-    { "192.168.1.21", 42712   },
+    { { 192, 168, 1, 21 }, 42712   },
 
-    // { "192.168.1.22", 44293   },
-    { "192.168.1.23", 9085487 },
+    // { { 192, 168, 1, 22 }, 44293   },
+    { { 192, 168, 1, 23 }, 9085487 },
 
-    // { "192.168.1.24", 9053586 },
+    // { { 192, 168, 1, 24 }, 9053586 },
 };
 #endif // ifndef rasp_nodes_h

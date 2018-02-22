@@ -15,7 +15,7 @@
 #define UDP_INCOMING_BUFFER_SIZE 529
 
 // default port
-#define UDP_PORT 1337
+#define RASP_DEFAULT_PORT 1337
 
 /**
  * Singleton class that handles in/out messaging between peers
@@ -81,6 +81,17 @@ public:
      */
     void     sendPacket(uint8_t *buffer,
                         size_t   size);
+
+    /**
+     * TODO: DOCS
+     * [sendPacket description]
+     * @param buffer [description]
+     * @param size   [description]
+     * @param IP     [description]
+     */
+    void sendPacket(uint8_t *buffer,
+                    size_t   size,
+                    uint8_t  IP[4]);
 
 private:
 

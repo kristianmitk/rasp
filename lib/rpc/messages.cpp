@@ -111,11 +111,14 @@ AppendEntriesRequest::AppendEntriesRequest(uint8_t *packet, uint16_t size) {
     this->prevLogTerm  = unpack_uint32_t(packet, PACKET_BODY_OFFSET + 10);
     this->leaderCommit = unpack_uint16_t(packet, PACKET_BODY_OFFSET + 14);
 
-    // store the pointer to the begining of the data block
-    if (dataSize) this->data = packet + PACKET_BODY_OFFSET + 16;
-    else this->data = NULL;
+    // TODO: better doc, its lateee and I'm yawning
+    // We dont need to send the dataSize as we can deduce this from packetSize
+    // and empty heartbeat message (i.e everything in the message except the
+    // data)
+    this->dataSize = size - EMPTY_HEARTBEAT_MSG_SIZE;
 
-    this->dataSize = size;
+    if (this->dataSize) this->data = packet + PACKET_BODY_OFFSET + 16;
+    else this->data = NULL;
 }
 
 uint8_t * AppendEntriesRequest::marshall() {
@@ -237,7 +240,7 @@ Message * (*messageExtractors[4])(uint8_t * packet,
 Message* createMessage(uint8_t *packet, uint16_t size) {
     uint8_t messageType = unpack_uint8_t(packet, 0);
 
-    Serial.printf("\nMessageType: %d\n", messageType);
+    Serial.printf("MessageType: %d\n", messageType);
 
     return messageType < Message::lastVal ?
            messageExtractors[messageType](packet, size) : NULL;

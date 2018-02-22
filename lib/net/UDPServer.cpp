@@ -2,8 +2,8 @@
 
 
 void UDPServer::start() {
-    Udp.begin(UDP_PORT);
-    Serial.printf("UDP Server bind to port: %d\n", UDP_PORT);
+    Udp.begin(RASP_DEFAULT_PORT);
+    Serial.printf("UDP Server bind to port: %d\n", RASP_DEFAULT_PORT);
 }
 
 // TODO: use one broadcast Message function
@@ -44,6 +44,17 @@ void UDPServer::sendPacket(uint8_t *buffer, size_t size) {
     free(buffer);
 }
 
+void UDPServer::sendPacket(uint8_t *buffer, size_t size, uint8_t IP[4]) {
+    Serial.printf("Sending single message of size: %d to: %s\n",
+                  size,
+                  sender.toString().c_str());
+    IPAddress addr(IP);
+    Udp.beginPacket(addr, RASP_DEFAULT_PORT);
+    Udp.write((char *)buffer, size);
+    Udp.endPacket();
+    free(buffer);
+}
+
 size_t UDPServer::parse() {
     this->currentPacketSize = Udp.parsePacket();
 
@@ -53,15 +64,13 @@ size_t UDPServer::parse() {
         // the IP is cached for 'one round' to respond after data is
         // processed
         sender = Udp.remoteIP();
-#ifdef RASP_DEBUG
-        Serial.printf(
-            "--------------------------- %lu ---------------------------\n",
-            eventNumber++
-            );
+
+        printEventHeader();
+        Serial.printf("Begin at: %lu\n", millis());
         Serial.printf("Received %d bytes from %s\n",
                       currentPacketSize,
                       sender.toString().c_str());
-#endif // ifdef RASP_DEBUG
+
         int len = Udp.read(packetBuffer, UDP_INCOMING_BUFFER_SIZE);
     }
     return currentPacketSize;

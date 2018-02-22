@@ -14,7 +14,9 @@ extern "C" {
 
 #define NUM_FOLLOWERS RASP_NUM_SERVERS - 1
 
+// TODO: remove redundancies with `rasp_nodes.h` server array
 typedef struct followerState {
+    uint8_t  IP[4];
     uint32_t id;
     uint16_t nextIndex;
     uint16_t matchIndex;
