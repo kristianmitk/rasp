@@ -1,5 +1,6 @@
 #include "UDPServer.h"
 
+
 void UDPServer::start() {
     Udp.begin(UDP_PORT);
     Serial.printf("UDP Server bind to port: %d\n", UDP_PORT);
@@ -52,10 +53,15 @@ size_t UDPServer::parse() {
         // the IP is cached for 'one round' to respond after data is
         // processed
         sender = Udp.remoteIP();
+#ifdef RASP_DEBUG
+        Serial.printf(
+            "--------------------------- %lu ---------------------------\n",
+            eventNumber++
+            );
         Serial.printf("Received %d bytes from %s\n",
                       currentPacketSize,
                       sender.toString().c_str());
-
+#endif // ifdef RASP_DEBUG
         int len = Udp.read(packetBuffer, UDP_INCOMING_BUFFER_SIZE);
     }
     return currentPacketSize;

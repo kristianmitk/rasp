@@ -3,7 +3,7 @@
 
 #include <Arduino.h>
 #include "rasp_fs.h"
-#include "util.h"
+
 
 extern "C" {
     #include "stdint.h"
@@ -11,11 +11,27 @@ extern "C" {
 
 // using higher values causes memory problems and the boards begin to fail (i.e
 // print stack trace and reset iself)
-#define LOG_SIZE 30000
+#define LOG_SIZE 33000
 
 // we use a fixed array rather than dynamic structures to avoid memory
 // fragmentation
 #define NUM_LOG_ENTRIES 512
+
+/**
+ * Struct representing one dynamic sized log entry.
+ * An entry stores:
+ *      - the term in which the entry was created and appended to the log
+ *      - the size of the data block
+ *      - a pointer to the begining of the data block
+ * This struct is only instanciated when a specific entry of the log is
+ * requested by the `getEntry(uint16_t index)` function
+ */
+typedef struct LogEntry {
+    uint32_t term;
+    uint16_t size;
+    void    *data;
+} logEntry_t;
+
 
 /**
  * The in memory representation of the Log. If you are looking for the

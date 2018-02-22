@@ -1,6 +1,6 @@
 #ifndef messages_h
+#include <Arduino.h>
 
-#include "util.h"
 #include "marshall.h"
 #define messages_h
 extern "C" {

@@ -3,7 +3,6 @@
 #include <Arduino.h>
 #include <fs.h>
 #include "marshall.h"
-#include "util.h"
 #include "env.h"
 
 /**

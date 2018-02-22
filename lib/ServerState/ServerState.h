@@ -7,6 +7,7 @@
 #include "messages.h"
 #include "rasp_nodes.h"
 #include "rasp_fs.h"
+#include "UDPServer.h"
 extern "C" {
     #include <stdint.h>
 }
@@ -17,6 +18,7 @@ typedef struct followerState {
     uint32_t id;
     uint16_t nextIndex;
     uint16_t matchIndex;
+    uint32_t lastTimeout;
 } followerState_t;
 
 
@@ -29,6 +31,13 @@ typedef struct followerState {
 class ServerState {
 public:
 
+    static ServerState& getInstance()
+    {
+        static ServerState instance;
+
+        return instance;
+    }
+
     /**
      * TODO: DOCS
      * [ServerState description]
@@ -39,13 +48,6 @@ public:
         CANDIDATE,
         LEADER
     };
-
-    /**
-     * TODO: DOCS
-     * [ServerState description]
-     * @param id [description]
-     */
-    ServerState();
 
     /**
      * This function handles actually what the empty constructor could do.
@@ -71,15 +73,17 @@ public:
      * @param  msg [description]
      * @return     [description]
      */
-    Message* dispatch(Message *msg);
+    void handleMessage();
 
+
+    void loopHandler();
 
     /**
      * TODO: DOCS
      * [checkElectionTimeout description]
      * @return [description]
      */
-    Message* checkElectionTimeout();
+    void checkElectionTimeout();
 
 
     /**
@@ -157,7 +161,7 @@ public:
      * [checkHeartbeatTimeout description]
      * @return [description]
      */
-    uint8_t  checkHeartbeatTimeout();
+    void     checkHeartbeatTimeouts();
 
     /**
      * TODO: DOCS
@@ -168,12 +172,6 @@ public:
 
 
     void     DEBUG_APPEND_LOG();
-
-    /**
-     * TODO: make private
-     * [checkGrantedVotes description]
-     */
-    bool EMPTY_HEARTBEAT;
 
 private:
 
@@ -221,6 +219,18 @@ private:
 
     uint16_t electionTimeout;
     uint16_t heartbeatTimeout;
+
+
+    /**
+     * TODO: DOCS
+     * [ServerState description]
+     * @param id [description]
+     */
+    ServerState() {}
+
+
+    ServerState(ServerState const&);
+    void operator=(ServerState const&);
 };
 
 #endif // ifndef ServerState_h

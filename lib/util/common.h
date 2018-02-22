@@ -9,4 +9,6 @@ extern "C" {
 
 const uint32_t chipID = system_get_chip_id();
 
+extern uint32_t eventNumber;
+
 #endif // ifndef common_h

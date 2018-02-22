@@ -1,5 +1,4 @@
 #include "ServerState.h"
-#include "util.h"
 
 // TODO: outsource boundaries to a config file
 #define MIN_ELECTION_TIMEOUT 200
@@ -15,11 +14,7 @@ followerState_t ServerState::getFollower(uint32_t id) {
     }
 }
 
-ServerState::ServerState() {}
-
 void ServerState::initialize() {
-    EMPTY_HEARTBEAT = true;
-
     receivedVotes   = 0;
     currentTerm     = RASPFS::getInstance().read(RASPFS::CURRENT_TERM);
     votedFor        = RASPFS::getInstance().read(RASPFS::VOTED_FOR);
@@ -41,30 +36,51 @@ void ServerState::initialize() {
     this->serialPrint();
 }
 
-Message * ServerState::dispatch(Message *msg) {
+void ServerState::loopHandler() {
+    DEBUG_APPEND_LOG();
+
+    checkHeartbeatTimeouts();
+
+    handleMessage();
+
+    checkElectionTimeout();
+}
+
+void ServerState::handleMessage() {
+    Message *msg = UDPServer::getInstance().checkForMessage();
+
+    if (!msg) return;
+
     switch (msg->type) {
     case Message::RequestVoteReq:
-        return handleRequestVoteReq(msg);
+        msg = handleRequestVoteReq(msg);
+        break;
 
     case Message::RequestVoteRes:
         handleRequestVoteRes(msg);
-        return NULL;
+        msg = NULL;
+        break;
 
     case Message::AppendEntriesReq:
-        return handleAppendEntriesReq(msg);
+        msg =  handleAppendEntriesReq(msg);
+        break;
 
     case Message::AppendEntriesRes:
 
         handleAppendEntriesRes(msg);
-        return NULL;
+        msg =  NULL;
+        break;
 
     default:
 #ifdef RASP_DEBUG
         Serial.printf("[ERR] received unknown message type: %d", msg->type);
 #endif // ifdef RASP_DEBUG
-        return NULL;
+        msg =  NULL;
     }
-    return NULL;
+
+    if (!msg) return;
+
+    UDPServer::getInstance().sendPacket(msg->marshall(), msg->size());
 }
 
 // TODO: set persistent values
@@ -154,14 +170,17 @@ void ServerState::handleRequestVoteRes(Message *msg) {
     return handleRequestVoteRes(p->term, p->voteGranted);
 }
 
-Message * ServerState::checkElectionTimeout() {
-    if (this->role == LEADER) return NULL;
+void ServerState::checkElectionTimeout() {
+    if (this->role == LEADER) return;
 
     rvReq = RequestVoteRequest();
 
     if (millis() > lastTimeout + electionTimeout) {
         RASPFS::getInstance().write(RASPFS::CURRENT_TERM, (++this->currentTerm));
-
+        Serial.printf(
+            "--------------------------- %lu ---------------------------\n",
+            eventNumber++
+            );
         Serial.printf(
             "\n[WARN] Election timout. Starting a new election on term: %d\n",
             this->currentTerm);
@@ -179,9 +198,8 @@ Message * ServerState::checkElectionTimeout() {
         rvReq.lastLogTerm  = this->log->lastStoredTerm();
 
         resetElectionTimeout();
-        return &rvReq;
+        UDPServer::getInstance().broadcastRequestVoteRPC(rvReq.marshall());
     }
-    return NULL;
 }
 
 void ServerState::checkGrantedVotes() {
@@ -320,16 +338,16 @@ ServerState::Role ServerState::getRole() {
     return this->role;
 }
 
-uint8_t ServerState::checkHeartbeatTimeout() {
-    if (this->role != LEADER) return 0;
-
-    uint32_t curr = millis();
-
-    if (curr > lastTimeout + heartbeatTimeout) {
-        lastTimeout = curr;
-        return 1;
-    }
-    return 0;
+void ServerState::checkHeartbeatTimeouts() {
+    // if (this->role != LEADER) return 0;
+    //
+    // uint32_t curr = millis();
+    //
+    // if (curr > lastTimeout + heartbeatTimeout) {
+    //     lastTimeout = curr;
+    //     return 1;
+    // }
+    // return 0;
 }
 
 Message * ServerState::generateEmptyHeartBeat() {
@@ -353,7 +371,6 @@ void ServerState::DEBUG_APPEND_LOG() {
 
             this->log->append(currentTerm, entryData, entrySize);
             this->log->printLastEntry();
-            this->EMPTY_HEARTBEAT = false;
         }
     }
 }
