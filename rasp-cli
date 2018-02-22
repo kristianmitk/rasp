@@ -1,0 +1,77 @@
+#!/bin/bash
+
+RASP_ROOT_PATH="$( cd "$(pwd)/$(dirname $0)" && pwd )";
+
+function show_help() {
+    cat <<_EOF
+Desc:
+    Uploads sketch/SPIFFS files to all connected boards
+
+Usage:
+    $0 [-h | --help] [-s | --screen ] [-n | --no-upload] TYPE
+
+TYPE:
+    either uploadfs, or upload.
+    - uploadfs : SPIFFS file system that is under data/
+    - upload   : see platformio.ini for build configuration
+
+-s, --screen:
+    specifies if a screen session with serial monitors as separate tabs to all
+    connected boards should be opened
+
+-n, --no-upload:
+    if you wish to only start a screen session and not to upload anything then
+    use this flag in combination with the above flag: -s, --screen
+_EOF
+}
+
+while [[ $# -gt 0 ]]
+do
+key="$1"
+
+case $key in
+    -s|--screen)
+    SCREEN="1"
+    shift # past argument
+    shift # past value
+    ;;
+    -h|--help)
+    show_help
+    exit 0;
+    shift
+    ;;
+    -n|--no-upload)
+    NOUPLOAD="1"
+    shift
+    ;;
+    *)    # unknown option
+    POSITIONAL+=("$1") # save it in an array for later
+    shift # past argument
+    ;;
+esac
+done
+
+set -- "${POSITIONAL[@]}" # restore positional parameters
+
+TYPE="$1"
+
+if [ "$TYPE" != "upload" ] && [ "$TYPE" != "uploadfs" ]; then
+    echo "[ERR] Parameter: '${TYPE}' is not a valid TYPE parameter!"
+    show_help
+    exit 1;
+fi
+
+if [[ "$NOUPLOAD" != "1" ]]; then
+    for device in /dev/cu.usbserial*; do
+        echo "Starting upload of project sketch to $device"
+        pio run -t ${TYPE} --upload-port $device
+    done
+fi
+
+if [[ "$SCREEN" == "1" ]]; then
+    screen -d -m -S rasp -t "random" bash -c 'clear;'
+    for device in /dev/cu.usbserial*; do
+        screen -r rasp -X screen -t "$device" bash -c "clear;pio device monitor --port $device --baud 115200"
+    done
+    screen -r rasp
+fi
