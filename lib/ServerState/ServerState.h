@@ -175,6 +175,10 @@ public:
 
     void     DEBUG_APPEND_LOG();
 
+    uint32_t getCurrentTerm() {
+        return this->currentTerm;
+    }
+
 private:
 
     /**
@@ -183,13 +187,13 @@ private:
      * @param  id [description]
      * @return    [description]
      */
-    followerState_t getFollower(uint32_t id);
+    followerState_t* getFollower(uint32_t id);
 
     /**
      * TODO: DOCS
      * [ServerState::checkGrantedVotes description]
      */
-    void            checkGrantedVotes();
+    void             checkGrantedVotes();
 
     // own chipID used as an ID to identify a server
     uint32_t selfID;

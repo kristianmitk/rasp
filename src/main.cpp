@@ -19,6 +19,7 @@ SerialInHandler serialInHandler;
 /* -------------------------- SETUP -------------------------- */
 void setup() {
     Serial.begin(DEFAULT_BAUD_RATE);
+    Serial.println();
 
     // if analog input pin 0 is unconnected, random analog
     // noise will cause the call to randomSeed() to generate
@@ -26,14 +27,16 @@ void setup() {
     // randomSeed() will then shuffle the random function.
     randomSeed(analogRead(0));
 
-    // lazy construction included
-    ServerState::getInstance().initialize();
-
     // setup network connection
     connectToWiFi();
 
-    // open server to listen for incomming packets
+    // lazy construction and state initialization
+    ServerState::getInstance().initialize();
+
+    // lazy construction and and open server for peers
     UDPServer::getInstance().start();
+
+    printCurrentMillis();
 }
 
 /* -------------------------- LOOP -------------------------- */

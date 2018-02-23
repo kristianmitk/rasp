@@ -2,9 +2,15 @@
 
 uint32_t eventNumber = 0;
 
-void printEventHeader() {
+void printEventHeader(uint32_t term) {
     Serial.printf(
-        "--------------------------- %lu ---------------------------\n",
-        eventNumber++
+        "\n------------------ Event: %lu Term: %lu Millis: %lu ------------------\n",
+        eventNumber++,
+        term,
+        millis()
         );
+}
+
+void printCurrentMillis() {
+    Serial.printf("current millis: %lu\n", millis());
 }

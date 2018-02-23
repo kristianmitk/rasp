@@ -11,6 +11,8 @@ const uint32_t chipID = system_get_chip_id();
 
 extern uint32_t eventNumber;
 
-void printEventHeader();
+void printEventHeader(uint32_t term);
+
+void printCurrentMillis();
 
 #endif // ifndef common_h

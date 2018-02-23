@@ -76,35 +76,36 @@ public:
      * [size description]
      * @return [description]
      */
-    uint16_t   size();
+    uint16_t    size();
 
     /**
      * TODO: DOCS
      * [lastTerm description]
      * @return [description]
      */
-    uint32_t   lastStoredTerm();
+    uint32_t    lastStoredTerm();
 
     /**
      * TODO: DOCS
      * [printLastEntry description]
      * @return [description]
      */
-    void       printLastEntry();
+    void        printLastEntry();
 
     /**
      * TODO: DOCS
      * [lastEntry description]
      * @return [description]
      */
-    logEntry_t lastEntry();
+    logEntry_t  lastEntry();
 
     /**
+     * NOTE: we count log indexes begining at 1 and not with 0 like arrays
      * TODO: DOCS
      * [lastIndex description]
      * @return [description]
      */
-    uint16_t   lastIndex();
+    uint16_t    lastIndex();
 
     /**
      * TODO: DOCS
@@ -112,7 +113,15 @@ public:
      * @param  index [description]
      * @return       [description]
      */
-    logEntry_t getEntry(uint16_t index);
+    logEntry_t* getEntry(uint16_t index);
+
+    /**
+     * TODO: DOCS
+     * [getTerm description]
+     * @param  index [description]
+     * @return       [description]
+     */
+    uint32_t    getTerm(uint16_t index);
 
 private:
 

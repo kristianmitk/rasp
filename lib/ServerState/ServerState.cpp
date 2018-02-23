@@ -9,9 +9,9 @@
 #define REQUIRED_VOTES (RASP_NUM_SERVERS / 2 + 1)
 
 
-followerState_t ServerState::getFollower(uint32_t id) {
+followerState_t * ServerState::getFollower(uint32_t id) {
     for (int i = 0; i < NUM_FOLLOWERS; i++) {
-        if (followerStates[i].id == id) return followerStates[i];
+        if (followerStates[i].id == id) return &followerStates[i];
     }
 }
 
@@ -42,9 +42,9 @@ void ServerState::initialize() {
 void ServerState::loopHandler() {
     DEBUG_APPEND_LOG();
 
-    checkHeartbeatTimeouts();
-
     handleMessage();
+
+    checkHeartbeatTimeouts();
 
     checkElectionTimeout();
 }
@@ -75,9 +75,7 @@ void ServerState::handleMessage() {
         break;
 
     default:
-#ifdef RASP_DEBUG
         Serial.printf("[ERR] received unknown message type: %d", msg->type);
-#endif // ifdef RASP_DEBUG
         msg =  NULL;
     }
 
@@ -149,13 +147,10 @@ void ServerState::handleRequestVoteRes(uint32_t term, uint8_t  voteGranted) {
                 this->receivedVotes++;
                 checkGrantedVotes();
                 return;
-
-#ifdef RASP_DEBUG
             } else {
                 Serial.printf("Obsolete message: own term:%lu, received: %lu\n",
                               this->currentTerm,
                               term);
-#endif // ifdef RASP_DEBUG
             }
         }
 
@@ -180,7 +175,7 @@ void ServerState::checkElectionTimeout() {
 
     if (millis() > lastTimeout + electionTimeout) {
         RASPFS::getInstance().write(RASPFS::CURRENT_TERM, (++this->currentTerm));
-        printEventHeader();
+        printEventHeader(currentTerm);
         Serial.printf(
             "\n[WARN] Election timout. Starting a new election on term: %d\n",
             this->currentTerm);
@@ -197,8 +192,8 @@ void ServerState::checkElectionTimeout() {
         rvReq.lastLogIndex = this->log->lastIndex();
         rvReq.lastLogTerm  = this->log->lastStoredTerm();
 
-        resetElectionTimeout();
         UDPServer::getInstance().broadcastRequestVoteRPC(rvReq.marshall());
+        resetElectionTimeout();
     }
 }
 
@@ -231,13 +226,13 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
     p->serialPrint();
 
     Serial.printf("Handling AppendEntries RPC request\n");
-
     aeRes.term     = currentTerm;
     aeRes.success  = 0;
     aeRes.serverId = chipID;
 
     // (§5.1)
     if (currentTerm > p->term) {
+        Serial.printf("Obsolete Message, currentTerm: %lu\n", currentTerm);
         return &aeRes;
     }
 
@@ -249,25 +244,53 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
     }
     role = FOLLOWER;
 
-    logEntry_t prevEntry = this->log->getEntry(p->prevLogIndex);
+    logEntry_t *prevEntry = this->log->getEntry(p->prevLogIndex);
+
 
     // check if entry exist at previous log index send from leader
-    if (prevEntry.size) {
+    if (prevEntry) {
         Serial.printf("Entry exist! Size of data: %lu and term:%lu\n",
-                      prevEntry.size,
-                      prevEntry.term);
+                      prevEntry->size,
+                      prevEntry->term);
 
         // (§5.3)
-        if (prevEntry.term == p->prevLogTerm) {
-            Serial.printf("Appending new entry\n");
+        if (prevEntry->term == p->prevLogTerm) {
+            Serial.printf("prev Entries do match!\n");
 
-            if (p->dataSize) this->log->append(p->term, p->data, p->dataSize);
+            if (p->dataSize) {
+                if (this->log->getTerm(p->prevLogIndex + 1) != p->dataTerm) {
+                    // TODO: replace entries that are not commited
+                }
 
+                if (!this->log->getEntry(p->prevLogIndex + 1)) {
+                    this->log->append(p->dataTerm, p->data, p->dataSize);
+                }
+            }
             aeRes.success = 1;
         } else {
             Serial.printf("prevEntry.term != p->prevLogTerm\n");
         }
+    } else {
+        Serial.println("entry does not exist!");
+
+        if (!p->prevLogIndex && !p->prevLogTerm) {
+            Serial.println("index=0, term=0");
+
+            if (p->dataSize) {
+                if (this->log->getTerm(p->prevLogIndex + 1) != p->dataTerm) {
+                    // TODO: replace entries that are not commited
+                }
+
+                if (!this->log->getEntry(p->prevLogIndex + 1)) {
+                    this->log->append(p->dataTerm, p->data, p->dataSize);
+                } else {
+                    Serial.println("Entry already appended!");
+                }
+            }
+            aeRes.success = 1;
+        }
     }
+    free(prevEntry);
     resetElectionTimeout();
     return &aeRes;
 }
@@ -284,36 +307,69 @@ void ServerState::handleAppendEntriesRes(Message *msg) {
         this->role  = FOLLOWER;
         return;
     }
-    followerState_t fstate = getFollower(p->serverId);
+    followerState_t *fstate = getFollower(p->serverId);
 
+    // TODO: minimize code
     if (!p->success) {
-        // should never be the case that we dont have a success and nextIndex <
-        // 1
-        if (fstate.nextIndex) {
-            fstate.nextIndex--;
-            Serial.printf(
-                "Would send a decremented AE to: %lu\nnextIndex:%d, matchIndex:%d\n",
-                fstate.id,
-                fstate.nextIndex,
-                fstate.matchIndex);
+        // make sure we never get under 1 - this seemed to happen due to
+        // multiple AE send
+        fstate->nextIndex = fstate->nextIndex == 1 ? 1 : fstate->nextIndex - 1;
+        uint16_t sendIndex = fstate->nextIndex - 1;
 
-            // TODO: send a decremented append entries message
+        aeReq.term         = currentTerm;
+        aeReq.leaderId     = chipID;
+        aeReq.leaderCommit = commitIndex;
+        aeReq.prevLogIndex = sendIndex;
+        aeReq.prevLogTerm  = this->log->getTerm(sendIndex);
+        aeReq.dataSize     = 0;
+        aeReq.dataTerm     = 0;
+        aeReq.data         = NULL;
+
+        logEntry_t *entry = NULL;
+
+        if (!sendIndex && (entry = this->log->getEntry(1))) {
+            aeReq.dataSize = entry->size;
+            aeReq.data     = (uint8_t *)entry->data;
+            aeReq.dataTerm = entry->term;
+            free(entry);
         }
+        UDPServer::getInstance().sendPacket(aeReq.marshall(), aeReq.size());
+        Serial.printf(
+            "Send a decremented AE with nextIndex:%d, matchIndex:%d\n",
+            fstate->nextIndex,
+            fstate->matchIndex);
     } else {
-        fstate.nextIndex++;
-        fstate.matchIndex++;
+        if (fstate->nextIndex <= this->log->lastIndex()) {
+            aeReq.term         = currentTerm;
+            aeReq.leaderId     = chipID;
+            aeReq.leaderCommit = commitIndex;
+            aeReq.prevLogIndex = fstate->nextIndex - 1;
+            aeReq.prevLogTerm  = this->log->getTerm(fstate->nextIndex - 1);
+            aeReq.dataSize     = 0;
+            aeReq.dataTerm     = 0;
+            aeReq.data         = NULL;
 
-        if (fstate.nextIndex <= this->log->lastIndex()) {
+            logEntry_t *entry = NULL;
+
+            if (entry = this->log->getEntry(fstate->nextIndex)) {
+                aeReq.dataSize = entry->size;
+                aeReq.data     = (uint8_t *)entry->data;
+                aeReq.dataTerm = entry->term;
+                free(entry);
+            }
+            UDPServer::getInstance().sendPacket(aeReq.marshall(), aeReq.size());
             Serial.printf(
-                "Would send a incremented AE to: %lu\nnextIndex:%d, matchIndex:%d\n",
-                fstate.id,
-                fstate.nextIndex,
-                fstate.matchIndex
+                "Send an AE with nextIndex:%d, matchIndex:%d\n",
+                fstate->nextIndex,
+                fstate->matchIndex
                 );
+            fstate->nextIndex++;
 
-            // TODO: send a incremented append entries message
+            // TODO: add matchIndex
+            // fstate->matchIndex++;
         }
     }
+    fstate->lastTimeout = millis();
 }
 
 void ServerState::resetElectionTimeout() {
@@ -321,7 +377,7 @@ void ServerState::resetElectionTimeout() {
 
     lastTimeout = millis();
 
-    Serial.printf("New timeout: %lu\ncurrent millis: %lu\n",
+    Serial.printf("New timeout: %lu current millis: %lu\n",
                   electionTimeout,
                   lastTimeout);
 }
@@ -335,47 +391,60 @@ void ServerState::checkHeartbeatTimeouts() {
 
     for (int i = 0; i < NUM_FOLLOWERS; i++) {
         if (followerStates[i].lastTimeout + heartbeatTimeout < millis()) {
-            printEventHeader();
-            Serial.printf("Sending AE Req\n");
-            Message *msg = generateEmptyHeartBeat();
-            UDPServer::getInstance().sendPacket(msg->marshall(),
-                                                msg->size(),
+            printEventHeader(currentTerm);
+            Serial.printf("lastTimeout: %lu\n", followerStates[i].lastTimeout);
+
+            Serial.printf("Sending AE Req, nextIndex: %lu\n",
+                          followerStates[i].nextIndex);
+
+            aeReq.term         = currentTerm;
+            aeReq.leaderId     = chipID;
+            aeReq.dataSize     = 0;
+            aeReq.dataTerm     = 0;
+            aeReq.data         = NULL;
+            aeReq.prevLogIndex = followerStates[i].nextIndex - 1;
+            aeReq.prevLogTerm  = log->getTerm(aeReq.prevLogIndex);
+
+            // if there is anything to append, than do so
+            if (followerStates[i].nextIndex <= this->log->lastIndex()) {
+                logEntry_t *entry =
+                    this->log->getEntry(followerStates[i].nextIndex);
+                aeReq.data     = (uint8_t *)entry->data;
+                aeReq.dataSize = entry->size;
+                aeReq.dataTerm = entry->term;
+                Serial.printf("Passing dataTerm:%lu\n", entry->term);
+                free(entry);
+            }
+            UDPServer::getInstance().sendPacket(aeReq.marshall(),
+                                                aeReq.size(),
                                                 followerStates[i].IP);
             followerStates[i].lastTimeout = millis();
         }
     }
-
-    //
-    // uint32_t curr = millis();
-    //
-    // if (curr > lastTimeout + heartbeatTimeout) {
-    //     lastTimeout = curr;
-    //     return 1;
-    // }
-    // return 0;
 }
 
-Message * ServerState::generateEmptyHeartBeat() {
-    aeReq.term         = currentTerm;
-    aeReq.leaderId     = chipID;
-    aeReq.prevLogIndex = this->log->lastIndex();
-    aeReq.prevLogTerm  = this->log->lastStoredTerm();
-    aeReq.leaderCommit = commitIndex;
-    aeReq.dataSize     = 0;
-    return &aeReq;
-}
+// TODO: this might be obsolete - remove
+// Message * ServerState::generateEmptyHeartBeat() {
+//     aeReq.term         = currentTerm;
+//     aeReq.leaderId     = chipID;
+//     aeReq.prevLogIndex = this->log->lastIndex();
+//     aeReq.prevLogTerm  = this->log->lastStoredTerm();
+//     aeReq.leaderCommit = commitIndex;
+//     aeReq.dataSize     = 0;
+//     return &aeReq;
+// }
 
 void ServerState::DEBUG_APPEND_LOG() {
     if (this->role == LEADER) {
         uint32_t rnd = random(1, 1000000);
 
         if (rnd > 999990) {
+            printEventHeader(currentTerm);
             uint16_t entrySize = random(1, 50);
             uint8_t  entryData[entrySize];
             entryData[0] = random(0, 2);
 
             this->log->append(currentTerm, entryData, entrySize);
-            this->log->printLastEntry();
         }
     }
 }

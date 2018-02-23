@@ -9,7 +9,7 @@ extern "C" {
 
 #define REQ_VOTE_REQ_MSG_SIZE 14
 #define REQ_VOTE_RES_MSG_SIZE 6
-#define EMPTY_HEARTBEAT_MSG_SIZE 17
+#define EMPTY_HEARTBEAT_MSG_SIZE 21
 #define APP_ENTRIES_RES_MSG_SIZE 10
 
 /**
@@ -108,6 +108,7 @@ public:
     uint16_t prevLogIndex;
     uint32_t prevLogTerm;
     uint16_t leaderCommit;
+    uint32_t dataTerm;
     uint8_t *data;
     uint16_t dataSize;
 

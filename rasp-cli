@@ -1,6 +1,6 @@
 #!/bin/bash
 
-RASP_ROOT_PATH="$( cd "$(pwd)/$(dirname $0)" && pwd )";
+# RASP_ROOT_PATH="$( cd "$(pwd)/$(dirname $0)" && pwd )";
 
 function show_help() {
     cat <<_EOF

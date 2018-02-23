@@ -8,6 +8,7 @@
 #include "messages.h"
 #include "rasp_nodes.h"
 #include "marshall.h"
+#include "ServerState.h"
 
 // TODO: outsource constants
 

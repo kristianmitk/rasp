@@ -5,7 +5,7 @@ extern "C" {
     #include <stdint.h>
 }
 
-#define RASP_NUM_SERVERS  2
+#define RASP_NUM_SERVERS  3
 
 typedef struct rasp_server {
     uint8_t  IP[4];
@@ -38,6 +38,6 @@ const rasp_server servers[RASP_NUM_SERVERS] = {
     // { { 192, 168, 1, 22 }, 44293   },
     { { 192, 168, 1, 23 }, 9085487 },
 
-    // { { 192, 168, 1, 24 }, 9053586 },
+    { { 192, 168, 1, 24 }, 9053586 },
 };
 #endif // ifndef rasp_nodes_h

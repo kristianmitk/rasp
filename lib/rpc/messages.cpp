@@ -2,7 +2,6 @@
 #include "messages.h"
 #include "marshall.h"
 #define PACKET_BODY_OFFSET 1
-#define PACKET_BODY_DATA_OFFSET PACKET_BODY_OFFSET + 16
 
 // TODO: marshalling should return stack buffer instead of buffer pointer
 //      -> how should this work?
@@ -111,18 +110,21 @@ AppendEntriesRequest::AppendEntriesRequest(uint8_t *packet, uint16_t size) {
     this->prevLogTerm  = unpack_uint32_t(packet, PACKET_BODY_OFFSET + 10);
     this->leaderCommit = unpack_uint16_t(packet, PACKET_BODY_OFFSET + 14);
 
+    // TODO: optimize this by putting it into the data block and not sending
+    // unnecessary 4 bytes in a empty heartbeat message
+    this->dataTerm = unpack_uint32_t(packet, PACKET_BODY_OFFSET + 16);
+
     // TODO: better doc, its lateee and I'm yawning
     // We dont need to send the dataSize as we can deduce this from packetSize
     // and empty heartbeat message (i.e everything in the message except the
     // data)
     this->dataSize = size - EMPTY_HEARTBEAT_MSG_SIZE;
 
-    if (this->dataSize) this->data = packet + PACKET_BODY_OFFSET + 16;
-    else this->data = NULL;
+    this->data = this->dataSize ? packet + EMPTY_HEARTBEAT_MSG_SIZE : NULL;
 }
 
 uint8_t * AppendEntriesRequest::marshall() {
-    uint8_t *buffer = new uint8_t[PACKET_BODY_DATA_OFFSET + this->dataSize];
+    uint8_t *buffer = new uint8_t[EMPTY_HEARTBEAT_MSG_SIZE + this->dataSize];
 
     pack_uint8_t(buffer, 0, Message::AppendEntriesReq);
     pack_uint32_t(buffer, PACKET_BODY_OFFSET,     this->term);
@@ -130,8 +132,9 @@ uint8_t * AppendEntriesRequest::marshall() {
     pack_uint16_t(buffer, PACKET_BODY_OFFSET + 8, this->prevLogIndex);
     pack_uint32_t(buffer, PACKET_BODY_OFFSET + 10, this->prevLogTerm);
     pack_uint16_t(buffer, PACKET_BODY_OFFSET + 14, this->leaderCommit);
+    pack_uint32_t(buffer, PACKET_BODY_OFFSET + 16, this->dataTerm);
 
-    if (this->dataSize) memcpy(&buffer[PACKET_BODY_DATA_OFFSET],
+    if (this->dataSize) memcpy(&buffer[EMPTY_HEARTBEAT_MSG_SIZE],
                                this->data,
                                this->dataSize);
     return buffer;
@@ -157,7 +160,7 @@ void AppendEntriesRequest::serialPrint() {
 }
 
 size_t AppendEntriesRequest::size() {
-    return EMPTY_HEARTBEAT_MSG_SIZE;
+    return EMPTY_HEARTBEAT_MSG_SIZE + this->dataSize;
 }
 
 /**

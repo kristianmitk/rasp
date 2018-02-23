@@ -45,10 +45,11 @@ void UDPServer::sendPacket(uint8_t *buffer, size_t size) {
 }
 
 void UDPServer::sendPacket(uint8_t *buffer, size_t size, uint8_t IP[4]) {
-    Serial.printf("Sending single message of size: %d to: %s\n",
-                  size,
-                  sender.toString().c_str());
     IPAddress addr(IP);
+
+    Serial.printf("Sending single message of size: %d to: ",
+                  size);
+    Serial.println(addr);
     Udp.beginPacket(addr, RASP_DEFAULT_PORT);
     Udp.write((char *)buffer, size);
     Udp.endPacket();
@@ -65,8 +66,7 @@ size_t UDPServer::parse() {
         // processed
         sender = Udp.remoteIP();
 
-        printEventHeader();
-        Serial.printf("Begin at: %lu\n", millis());
+        printEventHeader(ServerState::getInstance().getCurrentTerm());
         Serial.printf("Received %d bytes from %s\n",
                       currentPacketSize,
                       sender.toString().c_str());
