@@ -93,16 +93,15 @@ public:
         // TODO: add error handling
         Serial.printf("Before: %lu\n", millis());
         _logF.write(data, size);
-#ifdef RASP_DEBUG
         Serial.printf("Written: %lu bytes to LOG. New file size: %lu bytes\n",
                       size,
                       _logF.size());
-#endif // ifdef RASP_DEBUG
         Serial.printf("After: %lu\n", millis());
         return size;
     }
 
     /**
+     * TODO: DOCS
      * [readLog description]
      * @param  buf [description]
      * @return     [description]
@@ -110,6 +109,25 @@ public:
     size_t readLog(uint8_t *buf) {
         Serial.printf("File log size: %lu\n", _logF.size());
         return _logF.read(buf, _logF.size());
+    }
+
+    /**
+     * TODO: DOCS
+     * [overwriteLog description]
+     * @param  buf  [description]
+     * @param  size [description]
+     * @return      [description]
+     */
+    size_t overwriteLog(uint8_t *buf, uint16_t size) {
+        Serial.printf("Log size before overwriting: %lu\n", _logF.size());
+
+        File   tmp     = SPIFFS.open(FILE_NAME[LOG], "w");
+        size_t written = 0;
+
+        written = tmp.write(buf, size);
+        Serial.printf("Log size after overwriting: %lu\n", tmp.size());
+        tmp.close();
+        return written;
     }
 
 private:

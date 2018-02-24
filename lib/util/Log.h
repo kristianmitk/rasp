@@ -123,6 +123,13 @@ public:
      */
     uint32_t    getTerm(uint16_t index);
 
+
+    /**
+     * [lastEntryAddress description]
+     * @return [description]
+     */
+    void truncate(uint16_t index);
+
 private:
 
     /**

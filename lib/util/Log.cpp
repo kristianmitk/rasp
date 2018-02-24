@@ -34,6 +34,10 @@ uint16_t getDataSize(uint8_t *ptr) {
     return unpack_uint16_t(ptr, SIZE_OFFSET);
 }
 
+bool validIndex(uint16_t index) {
+    return (index > 0) && (index <= NUM_LOG_ENTRIES);
+}
+
 Log::Log() {
     nextEntry  = 0;
     latestTerm = 0;
@@ -70,7 +74,7 @@ void Log::append(uint32_t term, uint8_t *data, uint16_t size) {
     // only append if we did not reach the entires limit
     if (nextEntry == NUM_LOG_ENTRIES) {
         Serial.printf(
-            "[ERR] Log entries size limit of %db reached, cannot append: %lub",
+            "[ERR] Log entries length limit of %d reached, cannot append: %lub\n",
             NUM_LOG_ENTRIES,
             size);
         return;
@@ -82,7 +86,7 @@ void Log::append(uint32_t term, uint8_t *data, uint16_t size) {
     if (offset + size + DATA_OFFSET > LOG_SIZE) {
         Serial.printf(
             "[ERR] Log is full! Cannot append data.\n \
-            New data size: %lub (+ 6 for term/size), used log size: %lub",
+            New data size: %lub (+ 6 for term/size), used log size: %lub\n",
             size,
             offset);
         return;
@@ -106,12 +110,21 @@ void Log::append(uint32_t term, uint8_t *data, uint16_t size) {
     printLastEntry();
 }
 
+void Log::truncate(uint16_t index) {
+    if (!validIndex(index) || (lastIndex() < index)) return;
+
+    this->nextEntry  = index;
+    this->latestTerm = this->getTerm(index);
+
+    RASPFS::getInstance().overwriteLog(this->data, this->size());
+}
+
 uint16_t Log::size() {
     if (lastIndex() == 0) return 0;
 
     uint16_t adr = lastEntryAddress();
 
-    return getDataSize(&this->data[adr]) + adr + DATA_OFFSET;
+    return adr + DATA_OFFSET + getDataSize(&this->data[adr]);
 }
 
 uint32_t Log::lastStoredTerm() {
@@ -123,8 +136,7 @@ uint16_t Log::lastEntryAddress() {
 }
 
 logEntry_t * Log::getEntry(uint16_t index) {
-    if ((index <= 0) || (index > NUM_LOG_ENTRIES) ||
-        (lastIndex() < index)) return NULL;
+    if (!validIndex(index) || (lastIndex() < index)) return NULL;
 
     logEntry_t *entry = new logEntry_t;
 
@@ -158,7 +170,7 @@ void Log::printLastEntry() {
 }
 
 uint8_t * Log::getPointer(uint16_t index) {
-    if ((index <= 0) || (index > NUM_LOG_ENTRIES)) {
+    if (!validIndex(index)) {
         // Serial.println("[ERR] Index x has to be in {1,...,NUM_LOG_ENTRIES}");
         return NULL;
     }
