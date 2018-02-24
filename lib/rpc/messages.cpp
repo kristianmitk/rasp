@@ -4,7 +4,6 @@
 #define PACKET_BODY_OFFSET 1
 
 // TODO: marshalling should return stack buffer instead of buffer pointer
-//      -> how should this work?
 
 /**
  * ----------------------------- RequestVoteRequest ----------------------------
@@ -172,10 +171,11 @@ AppendEntriesResponse::AppendEntriesResponse() {
 }
 
 AppendEntriesResponse::AppendEntriesResponse(uint8_t *packet) {
-    this->type     = Message::AppendEntriesRes;
-    this->term     = unpack_uint32_t(packet, PACKET_BODY_OFFSET);
-    this->success  = unpack_uint8_t(packet, PACKET_BODY_OFFSET + 4);
-    this->serverId = unpack_uint32_t(packet, PACKET_BODY_OFFSET + 5);
+    this->type       = Message::AppendEntriesRes;
+    this->term       = unpack_uint32_t(packet, PACKET_BODY_OFFSET);
+    this->success    = unpack_uint8_t(packet, PACKET_BODY_OFFSET + 4);
+    this->matchIndex = unpack_uint16_t(packet, PACKET_BODY_OFFSET + 5);
+    this->serverId   = unpack_uint32_t(packet, PACKET_BODY_OFFSET + 7);
 }
 
 uint8_t * AppendEntriesResponse::marshall() {
@@ -184,21 +184,24 @@ uint8_t * AppendEntriesResponse::marshall() {
     pack_uint8_t(buffer, 0, Message::AppendEntriesRes);
     pack_uint32_t(buffer, PACKET_BODY_OFFSET, this->term);
     pack_uint8_t(buffer, PACKET_BODY_OFFSET + 4, this->success);
-    pack_uint32_t(buffer, PACKET_BODY_OFFSET + 5, this->serverId);
+    pack_uint16_t(buffer, PACKET_BODY_OFFSET + 5, this->matchIndex);
+    pack_uint32_t(buffer, PACKET_BODY_OFFSET + 7, this->serverId);
 
     return buffer;
 }
 
 void AppendEntriesResponse::serialPrint() {
     Serial.printf("AppendEntries response message \
-                \n%-25s%-25s%-25s\n",
+                \n%-25s%-25s%-25s%-25s\n",
                   "term",
                   "success",
+                  "matchIndex",
                   "senderId"
                   );
-    Serial.printf("%-25lu%-25lu%-25lu\n",
+    Serial.printf("%-25lu%-25lu%-25lu%-25lu\n",
                   this->term,
                   this->success,
+                  this->matchIndex,
                   this->serverId
                   );
 }

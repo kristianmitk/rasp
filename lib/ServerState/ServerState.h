@@ -8,6 +8,7 @@
 #include "rasp_nodes.h"
 #include "rasp_fs.h"
 #include "UDPServer.h"
+
 extern "C" {
     #include <stdint.h>
 }
@@ -33,13 +34,6 @@ typedef struct followerState {
 class ServerState {
 public:
 
-    static ServerState& getInstance()
-    {
-        static ServerState instance;
-
-        return instance;
-    }
-
     /**
      * TODO: DOCS
      * [ServerState description]
@@ -50,6 +44,13 @@ public:
         CANDIDATE,
         LEADER
     };
+
+    static ServerState& getInstance()
+    {
+        static ServerState instance;
+
+        return instance;
+    }
 
     /**
      * This function handles actually what the empty constructor could do.
@@ -68,6 +69,25 @@ public:
      */
     void serialPrint();
 
+    /**
+     * TODO: DOCS
+     * [loopHandler description]
+     */
+    void loopHandler();
+
+
+    /**
+     * TODO: DOCS
+     * [getRole description]
+     * @return [description]
+     */
+    Role     getRole();
+
+    uint32_t getCurrentTerm() {
+        return this->currentTerm;
+    }
+
+private:
 
     /**
      * TODO: DOCS
@@ -76,9 +96,6 @@ public:
      * @return     [description]
      */
     void handleMessage();
-
-
-    void loopHandler();
 
     /**
      * TODO: DOCS
@@ -145,41 +162,27 @@ public:
      */
     void     handleAppendEntriesRes(Message *msg);
 
+
     /**
      * TODO: DOCS
      * [resetElectionTimeout description]
      */
-    void     resetElectionTimeout();
-
-    /**
-     * TODO: DOCS
-     * [getRole description]
-     * @return [description]
-     */
-    Role     getRole();
+    void             resetElectionTimeout();
 
     /**
      * TODO: DOCS
      * [checkHeartbeatTimeout description]
      * @return [description]
      */
-    void     checkHeartbeatTimeouts();
+    void             checkHeartbeatTimeouts();
+
+    void             DEBUG_APPEND_LOG();
 
     /**
      * TODO: DOCS
-     * [ServerState::generateEmptyHeartBeat description]
-     * @return [description]
+     * [ServerState::checkForNewCommitedIndex description]
      */
-    Message* generateEmptyHeartBeat();
-
-
-    void     DEBUG_APPEND_LOG();
-
-    uint32_t getCurrentTerm() {
-        return this->currentTerm;
-    }
-
-private:
+    void             checkForNewCommitedIndex();
 
     /**
      * TODO: DOCS

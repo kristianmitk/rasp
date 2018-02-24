@@ -8,6 +8,8 @@
 #include "UDPServer.h"
 #include "ServerState.h"
 #include "SerialInHandler.h"
+#include "StateMachine.h"
+
 extern "C" {
     #include "user_interface.h"
 }
@@ -37,6 +39,8 @@ void setup() {
     UDPServer::getInstance().start();
 
     printCurrentMillis();
+
+    StateMachine::getInstance();
 }
 
 /* -------------------------- LOOP -------------------------- */
@@ -44,6 +48,5 @@ void loop() {
     ServerState::getInstance().loopHandler();
 
     // TODO: add state-machine stuff
-
     serialInHandler.read();
 }

@@ -1,4 +1,5 @@
 #include "ServerState.h"
+#include "StateMachine.h"
 
 // TODO: outsource boundaries to a config file
 #define MIN_ELECTION_TIMEOUT 300
@@ -6,7 +7,7 @@
 #define HEARTBEAT_TIMEOUT 100
 #define generateTimeout() random(MIN_ELECTION_TIMEOUT, MAX_ELECTION_TIMEOUT)
 
-#define REQUIRED_VOTES (RASP_NUM_SERVERS / 2 + 1)
+#define MAJORITY (RASP_NUM_SERVERS / 2 + 1)
 
 
 followerState_t * ServerState::getFollower(uint32_t id) {
@@ -40,6 +41,14 @@ void ServerState::initialize() {
 }
 
 void ServerState::loopHandler() {
+    if (this->commitIndex > this->lastApplied) {
+        printEventHeader(currentTerm);
+        this->lastApplied++;
+        logEntry_t *entry = this->log->getEntry(this->lastApplied);
+        StateMachine::getInstance().apply(entry->data);
+        free(entry);
+    }
+
     DEBUG_APPEND_LOG();
 
     handleMessage();
@@ -99,8 +108,6 @@ Message * ServerState::handleRequestVoteReq(uint32_t term,
         return &rvRes;
     }
 
-    // if (!this->votedFor || (this->votedFor != chipID) ||
-    //     ((this->role == CANDIDATE) && (this->currentTerm < term)))
     if (!this->votedFor || (this->currentTerm < term)) {
         currentTerm = RASPFS::getInstance().write(RASPFS::CURRENT_TERM, term);
         role        = FOLLOWER;
@@ -115,6 +122,8 @@ Message * ServerState::handleRequestVoteReq(uint32_t term,
             votedFor = RASPFS::getInstance().write(RASPFS::VOTED_FOR,
                                                    candidateID);
             rvRes.voteGranted = true;
+        } else {
+            return &rvRes;
         }
     } else {
         Serial.printf("Self candidate in term: %d? %d\n",
@@ -199,12 +208,10 @@ void ServerState::checkElectionTimeout() {
 
 void ServerState::checkGrantedVotes() {
     // TODO: better timeouts
-    Serial.printf("required: %d, received %d\n", REQUIRED_VOTES, receivedVotes);
+    Serial.printf("required: %d, received %d\n", MAJORITY, receivedVotes);
 
-    if (REQUIRED_VOTES <= receivedVotes) {
+    if (MAJORITY <= receivedVotes) {
         Serial.printf("ELECTED LEADER!\n", receivedVotes);
-
-        // TODO: set nextIndex/matchIndex for all followes
 
         for (int i = 0; i < NUM_FOLLOWERS; i++) {
             followerStates[i].matchIndex  = 0;
@@ -226,9 +233,10 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
     p->serialPrint();
 
     Serial.printf("Handling AppendEntries RPC request\n");
-    aeRes.term     = currentTerm;
-    aeRes.success  = 0;
-    aeRes.serverId = chipID;
+    aeRes.term       = currentTerm;
+    aeRes.success    = 0;
+    aeRes.matchIndex = 0;
+    aeRes.serverId   = chipID;
 
     // (§5.1)
     if (currentTerm > p->term) {
@@ -238,10 +246,14 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
 
     if (p->term > currentTerm) {
         Serial.printf("p->term > currentTerm\n");
-
         currentTerm = RASPFS::getInstance().write(RASPFS::CURRENT_TERM, p->term);
         aeRes.term  = currentTerm;
     }
+
+    if (p->leaderCommit > this->commitIndex) {
+        this->commitIndex = min(p->leaderCommit, this->log->lastIndex());
+    }
+
     role = FOLLOWER;
 
     logEntry_t *prevEntry = this->log->getEntry(p->prevLogIndex);
@@ -256,6 +268,8 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
         // (§5.3)
         if (prevEntry->term == p->prevLogTerm) {
             Serial.printf("prev Entries do match!\n");
+            aeRes.matchIndex = p->prevLogIndex;
+            aeRes.success    = 1;
 
             if (p->dataSize) {
                 if (this->log->getTerm(p->prevLogIndex + 1) != p->dataTerm) {
@@ -265,8 +279,8 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
                 if (!this->log->getEntry(p->prevLogIndex + 1)) {
                     this->log->append(p->dataTerm, p->data, p->dataSize);
                 }
+                aeRes.matchIndex++;
             }
-            aeRes.success = 1;
         } else {
             Serial.printf("prevEntry.term != p->prevLogTerm\n");
         }
@@ -275,6 +289,8 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
 
         if (!p->prevLogIndex && !p->prevLogTerm) {
             Serial.println("index=0, term=0");
+            aeRes.success    = 1;
+            aeRes.matchIndex = p->prevLogIndex;
 
             if (p->dataSize) {
                 if (this->log->getTerm(p->prevLogIndex + 1) != p->dataTerm) {
@@ -283,11 +299,11 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
 
                 if (!this->log->getEntry(p->prevLogIndex + 1)) {
                     this->log->append(p->dataTerm, p->data, p->dataSize);
+                    aeRes.matchIndex++;
                 } else {
                     Serial.println("Entry already appended!");
                 }
             }
-            aeRes.success = 1;
         }
     }
     free(prevEntry);
@@ -309,21 +325,25 @@ void ServerState::handleAppendEntriesRes(Message *msg) {
     }
     followerState_t *fstate = getFollower(p->serverId);
 
+    fstate->nextIndex = max(fstate->nextIndex, uint16_t(p->matchIndex + 1));
+
     // TODO: minimize code
     if (!p->success) {
-        // make sure we never get under 1 - this seemed to happen due to
-        // multiple AE send
-        fstate->nextIndex = fstate->nextIndex == 1 ? 1 : fstate->nextIndex - 1;
+        // make sure we never get under 1 - this may happen due to multiple
+        // AE arriving
+        fstate->nextIndex -= fstate->nextIndex == 1 ? 0 : 1;
         uint16_t sendIndex = fstate->nextIndex - 1;
 
         aeReq.term         = currentTerm;
         aeReq.leaderId     = chipID;
         aeReq.leaderCommit = commitIndex;
         aeReq.prevLogIndex = sendIndex;
-        aeReq.prevLogTerm  = this->log->getTerm(sendIndex);
-        aeReq.dataSize     = 0;
-        aeReq.dataTerm     = 0;
-        aeReq.data         = NULL;
+
+        // returns 0 if index = 0
+        aeReq.prevLogTerm = this->log->getTerm(sendIndex);
+        aeReq.dataSize    = 0;
+        aeReq.dataTerm    = 0;
+        aeReq.data        = NULL;
 
         logEntry_t *entry = NULL;
 
@@ -363,10 +383,14 @@ void ServerState::handleAppendEntriesRes(Message *msg) {
                 fstate->nextIndex,
                 fstate->matchIndex
                 );
-            fstate->nextIndex++;
+        }
 
-            // TODO: add matchIndex
-            // fstate->matchIndex++;
+        // in case of a success matchIndex can only be incremented
+        // but if its just a reply to an empty heartbeat we dont have to check
+        // for new commit index...
+        if (fstate->matchIndex < p->matchIndex) {
+            fstate->matchIndex = p->matchIndex;
+            checkForNewCommitedIndex();
         }
     }
     fstate->lastTimeout = millis();
@@ -401,6 +425,7 @@ void ServerState::checkHeartbeatTimeouts() {
             aeReq.leaderId     = chipID;
             aeReq.dataSize     = 0;
             aeReq.dataTerm     = 0;
+            aeReq.leaderCommit = commitIndex;
             aeReq.data         = NULL;
             aeReq.prevLogIndex = followerStates[i].nextIndex - 1;
             aeReq.prevLogTerm  = log->getTerm(aeReq.prevLogIndex);
@@ -423,16 +448,51 @@ void ServerState::checkHeartbeatTimeouts() {
     }
 }
 
-// TODO: this might be obsolete - remove
-// Message * ServerState::generateEmptyHeartBeat() {
-//     aeReq.term         = currentTerm;
-//     aeReq.leaderId     = chipID;
-//     aeReq.prevLogIndex = this->log->lastIndex();
-//     aeReq.prevLogTerm  = this->log->lastStoredTerm();
-//     aeReq.leaderCommit = commitIndex;
-//     aeReq.dataSize     = 0;
-//     return &aeReq;
-// }
+/**
+ * TODO: DOCS
+ * [compare description]
+ * @param  e1 [description]
+ * @param  e2 [description]
+ * @return    [description]
+ */
+int compare(const void *e1, const void *e2) {
+    uint16_t f = *((uint16_t *)e1);
+    uint16_t s = *((uint16_t *)e2);
+
+    return (f > s) - (f < s);
+}
+
+void ServerState::checkForNewCommitedIndex() {
+    if (this->role != LEADER) return;
+
+    printEventHeader(currentTerm);
+    Serial.println("Checking new Index");
+    uint16_t matchIndexes[NUM_FOLLOWERS];
+
+    for (int i = 0; i < NUM_FOLLOWERS; i++) {
+        matchIndexes[i] = followerStates[i].matchIndex;
+        Serial.printf("%d: %lu\n", i, matchIndexes[i]);
+    }
+
+    Serial.println("Bout to start sorting");
+    qsort(matchIndexes, NUM_FOLLOWERS, sizeof(matchIndexes[0]), compare);
+    Serial.println("After sort:");
+
+    for (int i = 0; i < NUM_FOLLOWERS; i++) {
+        Serial.printf("%d: %lu\n", i, matchIndexes[i]);
+    }
+    Serial.printf("Returning number at index: %d\n",
+                  NUM_FOLLOWERS - (MAJORITY - 1));
+
+    // get the highes index that is replicated on the majority
+    uint16_t tempCommit = matchIndexes[NUM_FOLLOWERS - (MAJORITY - 1)];
+    Serial.printf("Temp commit is: %d\n", tempCommit);
+
+    if ((tempCommit > commitIndex) &&
+        (this->log->getTerm(tempCommit) == this->currentTerm)) {
+        this->commitIndex = tempCommit;
+    }
+}
 
 void ServerState::DEBUG_APPEND_LOG() {
     if (this->role == LEADER) {

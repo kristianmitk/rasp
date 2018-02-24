@@ -10,7 +10,7 @@ extern "C" {
 #define REQ_VOTE_REQ_MSG_SIZE 14
 #define REQ_VOTE_RES_MSG_SIZE 6
 #define EMPTY_HEARTBEAT_MSG_SIZE 21
-#define APP_ENTRIES_RES_MSG_SIZE 10
+#define APP_ENTRIES_RES_MSG_SIZE 12
 
 /**
  * TODO: DOCS
@@ -133,6 +133,7 @@ public:
 
     uint32_t term;
     uint8_t success;
+    uint16_t matchIndex;
 
     // TODO: remove this and use the sender IP at receiver side instead?
     // this is not in the Raft specification - we use this so we can easily
@@ -155,7 +156,7 @@ public:
  * This static objects are used all over the single routine that is running on
  * the ESP8266 boards. Received packets pass its data to the proper message type
  * and between function calls the pointers to this objects are given to the
- * callee. Vice versa: packets are created out of this objects
+ * callee. Vice versa: packets to send are created out of this objects
  */
 
 static RequestVoteRequest    rvReq;
