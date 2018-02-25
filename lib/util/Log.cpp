@@ -160,6 +160,10 @@ uint16_t Log::lastIndex() {
     return this->nextEntry;
 }
 
+bool Log::exist(uint16_t index) {
+    return validIndex(index) && index <= this->nextEntry;
+}
+
 void Log::printLastEntry() {
     uint8_t *p = this->getPointer(lastIndex());
 

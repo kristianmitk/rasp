@@ -125,10 +125,20 @@ public:
 
 
     /**
+     * TODO: DOCS
      * [lastEntryAddress description]
      * @return [description]
      */
     void truncate(uint16_t index);
+
+
+    /**
+     * TODO: DOCS
+     * [exist description]
+     * @param  index [description]
+     * @return       [description]
+     */
+    bool exist(uint16_t index);
 
 private:
 

@@ -2,6 +2,7 @@
 #include "StateMachine.h"
 
 // TODO: outsource boundaries to a config file
+// TODO: improve timeouts
 #define MIN_ELECTION_TIMEOUT 300
 #define MAX_ELECTION_TIMEOUT 600
 #define HEARTBEAT_TIMEOUT 100
@@ -114,8 +115,9 @@ Message * ServerState::handleRequestVoteReq(uint32_t term,
         rvRes.term  = term;
 
         // SAFETY RULES (§5.2, §5.4)
-        if ((lastLogTerm >= log->lastStoredTerm()) &&
-            (lastLogIndex >= log->lastIndex()))
+        if ((lastLogTerm > log->lastStoredTerm()) ||
+            ((lastLogTerm == log->lastStoredTerm()) &&
+             (lastLogIndex >= log->lastIndex())))
         {
             Serial.println("VoteGranted = true");
 
@@ -272,8 +274,9 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
             aeRes.success    = 1;
 
             if (p->dataSize) {
-                if (this->log->getTerm(p->prevLogIndex + 1) != p->dataTerm) {
-                    // TODO: replace entries that are not commited
+                if (this->log->exist(p->prevLogIndex + 1) &&
+                    (this->log->getTerm(p->prevLogIndex + 1) != p->dataTerm)) {
+                    this->log->truncate(p->prevLogIndex);
                 }
 
                 if (!this->log->getEntry(p->prevLogIndex + 1)) {
@@ -294,7 +297,7 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
 
             if (p->dataSize) {
                 if (this->log->getTerm(p->prevLogIndex + 1) != p->dataTerm) {
-                    // TODO: replace entries that are not commited
+                    this->log->truncate(p->prevLogIndex);
                 }
 
                 if (!this->log->getEntry(p->prevLogIndex + 1)) {

@@ -9,10 +9,6 @@
 #include "rasp_fs.h"
 #include "UDPServer.h"
 
-extern "C" {
-    #include <stdint.h>
-}
-
 #define NUM_FOLLOWERS RASP_NUM_SERVERS - 1
 
 // TODO: remove redundancies with `rasp_nodes.h` server array

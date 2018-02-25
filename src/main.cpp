@@ -10,10 +10,6 @@
 #include "SerialInHandler.h"
 #include "StateMachine.h"
 
-extern "C" {
-    #include "user_interface.h"
-}
-
 #define DEFAULT_BAUD_RATE 115200
 
 SerialInHandler serialInHandler;
