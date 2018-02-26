@@ -194,7 +194,7 @@ private:
      */
     void             checkGrantedVotes();
 
-    // own chipID used as an ID to identify a server
+    // own chipId used as an ID to identify a server
     uint32_t selfID;
 
     // needed in order to check for electionTimeout (compared to millis())

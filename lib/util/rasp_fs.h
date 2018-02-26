@@ -1,36 +1,34 @@
 #ifndef rasp_fs_h
 #define rasp_fs_h
+
 #include <Arduino.h>
 #include <fs.h>
 #include "marshall.h"
 #include "env.h"
 
+
+#define CURRENT_TERM    "/SS/currentTerm"
+#define VOTED_FOR       "/SS/votedFor"
+#define LOG             "/SS/log"
+
 /**
- * TODO: DOCS
- * [getInstance description]
- * @return [description]
+ * A wrapper that handles communication with the SPIFFS file system.
+ * Provides easy to use functions to write and read data that needs to be
+ * stored persistently.
+ * This class follows the static singleton pattern and thus is instanciated only
+ * once.
+ * To get the static object call: `RASPFS::getInstance()`
+ *
  */
+
 class RASPFS {
 public:
 
     /**
-     * TODO: DOCS
-     * [getInstance description]
-     * @return [description]
-     */
-    enum RASP_File: uint8_t {
-        CURRENT_TERM = 0,
-        VOTED_FOR    = 1,
-        LOG          = 2
-    };
-
-
-    /**
-     * To access the singleton object. The class is instantiated when this
-     * function is called the first time
-     * TODO: DOCS
-     * [getInstance description]
-     * @return [description]
+     * To access the singleton object. The class is lazily instantiated when
+     * this function is called the first time
+     *
+     * @return     {RASPFS}     reference to the static instance object
      */
     static RASPFS& getInstance()
     {
@@ -40,71 +38,73 @@ public:
     }
 
     /**
-     * TODO: DOCS
-     * [readCurrentTerm description]
-     * @return [description]
+     * Getter function to return the content of the `CURRENT_TERM` file.
+     * @return {uint32_t}   number that is stored in the `CURRENT_TERM` file
      */
     uint32_t readCurrentTerm() {
-        return read_uint32_t(FILE_NAME[CURRENT_TERM]);
+        return read_uint32_t(CURRENT_TERM);
     }
 
     /**
-     * TODO: DOCS
-     * [readCurrentTerm description]
-     * @return [description]
+     * Getter function to return the content of the `VOTED_FOR` file.
+     * @return {uint32_t}   number that is stored in the `VOTED_FOR` file.
      */
     uint32_t readVotedFor() {
-        return read_uint32_t(FILE_NAME[VOTED_FOR]);
+        return read_uint32_t(VOTED_FOR);
     }
 
     /**
-     * TODO: DOCS
-     * [write description]
-     * @param  f    [description]
-     * @param  data [description]
-     * @return      [description]
+     * Setter function to overwrite the content of the `VOTED_FOR` file.
+     * @return {uint32_t}   number that is was written to the `VOTED_FOR` file.
      */
-    uint32_t write(RASP_File f, uint32_t data) {
-        return write_uint32_t(FILE_NAME[f], data);
+    uint32_t writeVotedFor(uint32_t id) {
+        return write_uint32_t(VOTED_FOR, id);
     }
 
     /**
-     * TODO: DOCS
-     * [read description]
-     * @param  f [description]
-     * @return   [description]
+     * Setter function to overwrite the content of the `CURRENT_TERM` file.
+     * @return {uint32_t}   number that is was written to the `CURRENT_TERM`
+     *                      file.
      */
-    uint32_t read(RASP_File f) {
-        return read_uint32_t(FILE_NAME[f]);
+    uint32_t writeCurrentTerm(uint32_t term) {
+        return write_uint32_t(CURRENT_TERM, term);
     }
 
     /**
-     * TODO: DOCS
-     * [appendLogEntry description]
-     * @param  newEntry [description]
-     * @return          [description]
+     * Appends a new log entry to the `LOG` file.
+     * @param  data     pointer to the data block that has to be appended
+     * @param  size     size of bytes to write
+     * @return          size of bytes that were written
+     *
+     * TODO: remove/preprocess console prints
      */
     size_t appendLogEntry(uint8_t *data, uint16_t size) {
-        if (!SPIFFS.exists(FILE_NAME[LOG])) {
-            Serial.printf("%s does not exist", FILE_NAME[LOG]);
+        if (!SPIFFS.exists(LOG)) {
+            Serial.printf("%s does not exist", LOG);
             openLog();
         }
+        size_t written = 0;
 
-        // TODO: add error handling
         Serial.printf("Before: %lu\n", millis());
-        _logF.write(data, size);
+
+        written = _logF.write(data, size);
+
         Serial.printf("Written: %lu bytes to LOG. New file size: %lu bytes\n",
-                      size,
+                      written,
                       _logF.size());
         Serial.printf("After: %lu\n", millis());
-        return size;
+
+        return written;
     }
 
     /**
-     * TODO: DOCS
-     * [readLog description]
-     * @param  buf [description]
-     * @return     [description]
+     * Reads whatever is stored in the `LOG` file and puts the content into the
+     * by the function parameter pointer specified data block.
+     * This function is called only once and that is in the constructor of the
+     * `Log` class.
+     *
+     * @param  buf          pointer to data block where to load the content
+     * @return {size_t}     number of bytes read from `LOG` file
      */
     size_t readLog(uint8_t *buf) {
         Serial.printf("File log size: %lu\n", _logF.size());
@@ -112,47 +112,52 @@ public:
     }
 
     /**
-     * TODO: DOCS
-     * [overwriteLog description]
-     * @param  buf  [description]
-     * @param  size [description]
-     * @return      [description]
+     * Since SPIFFS does not offer a truncate operation on files, this function
+     * is needed for the one and only case; if there are uncomitted log entries
+     * persistently stored that should be replaced by new ones at the same
+     * index.
+     * @param  buf          pointer to data block that should overwrite the
+     *                      content of the `LOG` file
+     * @param  size         size of data block
+     * @return {size_t}     number of bytes written to `LOG` file
      */
     size_t overwriteLog(uint8_t *buf, uint16_t size) {
         Serial.printf("Log size before overwriting: %lu\n", _logF.size());
 
-        File   tmp     = SPIFFS.open(FILE_NAME[LOG], "w");
+        File   tmp     = SPIFFS.open(LOG, "w");
         size_t written = 0;
 
         written = tmp.write(buf, size);
         Serial.printf("Log size after overwriting: %lu\n", tmp.size());
         tmp.close();
+
         return written;
     }
 
 private:
 
     /**
-     * TODO: DOCS
-     * [write_uint32_t description]
-     * @param filename [description]
-     * @param data     [description]
+     * Overwrites the content of the `filename` file with the specified unsigned
+     * integer `val`.
+     * @param filename          path of file to which to write
+     * @param val {uint32_t}    value that has been written
      */
-    uint32_t write_uint32_t(const char *filename, uint32_t data) {
+    uint32_t write_uint32_t(const char *filename, uint32_t val) {
         uint8_t buf[4];
         File    f = SPIFFS.open(filename, "w");
 
-        pack_uint32_t(buf, 0, data);
+        pack_uint32_t(buf, 0, val);
         f.write(buf, 4);
         f.close();
-        return data;
+        return val;
     }
 
     /**
-     * TODO: DOCS
-     * [read_uint32_t description]
-     * @param  filename [description]
-     * @return          [description]
+     * Interprets the first four bytes as an unsigned integer of the by the
+     * `filename` specified file and returns the resulting value.
+     * @param  filename         path of file from which to read
+     * @return {uint32_t}       value that is stored under the corresponding
+     *                          file
      */
     uint32_t read_uint32_t(const char *filename) {
         uint8_t buf[4];
@@ -164,17 +169,21 @@ private:
     }
 
     /**
-     * TODO: DOCS
-     * [Log::openLog description]
+     * Opens the `LOG` file in 'a+' mode.
      */
     void openLog() {
-        // TODO check on sizes and open `SS/LOG+(1|2|3)`
-        _logF = SPIFFS.open(FILE_NAME[LOG], "a+");
+        _logF = SPIFFS.open(LOG, "a+");
     }
 
     /**
-     * TODO: DOCS
-     * [printSPIFFSInfo description]
+     * Prints some informations about SPIFFS.
+     * Those are:
+     *  - max open files
+     *  - block size
+     *  - max file size length
+     *  - page size
+     *  - used bytes
+     *  - total bytes
      */
     void printSPIFFSInfo() {
         FSInfo info;
@@ -198,8 +207,9 @@ private:
     }
 
     /**
-     * TODO: DOCS
-     * [RASPFS description]
+     * Initialized the SPIFFS file system and in case the `INITIAL_SETUP`
+     * preprocessor variable is set, it removes all existent files and creates
+     * only those that are specified in the RASP_FILES enum.
      */
     RASPFS() {
         if (!SPIFFS.begin()) {
@@ -236,26 +246,24 @@ private:
 
 #endif // ifdef INITIAL_SETUP
 
-        // TODO: check for empty files and set proper initial values
-        logPart = 1;
+        // logPart = 1;
         this->openLog();
     }
 
+    // restrict usage of this class.
     RASPFS(RASPFS const&);
+
+
     void operator=(RASPFS const&);
 
-    const char *FILE_NAME[3] = {
-        "/SS/currentTerm",
-        "/SS/votedFor",
-        "/SS/log",
-    };
 
     File _logF;
 
     // We separate the log into three files. Given the fact that SPIFFS gets
     // slow when a file reaches 20kb we avoid this problem by actually using
     // several files for the log
-    uint8_t logPart;
+    // TODO: implement this functionality
+    // uint8_t logPart;
 };
 
 #endif // ifndef rasp_fs_h

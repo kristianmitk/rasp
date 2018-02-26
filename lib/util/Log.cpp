@@ -1,25 +1,14 @@
 #include "Log.h"
 
-/**
- * In the following the structure of a log entry is visualized:
- *
- * +----------------------------------------+
- * |        |       |                       |
- * -- term -- size -- data ------------------
- * 0        4       6                       x = size
- * |        |       |                       |
- * +----------------------------------------+
- *
- * -> Log entries may have dynamic sizes.
- */
+
  #define TERM_OFFSET 0
  #define SIZE_OFFSET 4
  #define DATA_OFFSET 6 // term (4 bytes) + size (2 bytes)
 
 /**
  * Returns the term number of a log entry
- * @param  ptr pointer to a log entry
- * @return     term number of the log entry the pointer poits to
+ * @param  ptr      pointer to a log entry
+ * @return          term number of the log entry the pointer poits to
  */
 uint32_t getTermNumber(uint8_t *ptr) {
     return unpack_uint32_t(ptr, TERM_OFFSET);
@@ -27,13 +16,19 @@ uint32_t getTermNumber(uint8_t *ptr) {
 
 /**
  * Returns the size of the data of a log entry
- * @param  ptr pointer to a log entry
- * @return     size of the log entry data the pointer poits to
+ * @param  ptr      pointer to a log entry
+ * @return          size of the log entry data the pointer poits to
  */
 uint16_t getDataSize(uint8_t *ptr) {
     return unpack_uint16_t(ptr, SIZE_OFFSET);
 }
 
+/**
+ * Returns true iff index is a valid index. That means a corresponding log entry
+ * exist at that index.
+ * @param  index    index to preform check on
+ * @return       [description]
+ */
 bool validIndex(uint16_t index) {
     return (index > 0) && (index <= NUM_LOG_ENTRIES);
 }

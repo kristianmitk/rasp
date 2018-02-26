@@ -5,16 +5,30 @@
 #include "rasp_fs.h"
 
 
-extern "C" {
-    #include "stdint.h"
-}
+/**
+ * NOTE: Log entries are indexed from outside of this file begining from 1 but
+ * internally like arrays from 0.
+ */
+
+/**
+ * In the following the structure of a log entry is visualized:
+ *
+ * +----------------------------------------+
+ * |        |       |                       |
+ * -- term -- size -- data ------------------
+ * 0        4       6                      size
+ * |        |       |                       |
+ * +----------------------------------------+
+ *
+ * -> Log entries may have dynamic sizes.
+ */
+
 
 // using higher values causes memory problems and the boards begin to fail (i.e
 // print stack trace and reset iself)
 #define LOG_SIZE 33000
 
-// we use a fixed array rather than dynamic structures to avoid memory
-// fragmentation
+// fixed array - here is space for optimizations
 #define NUM_LOG_ENTRIES 512
 
 /**
@@ -47,96 +61,95 @@ class Log {
 public:
 
     /**
-     * TODO: DOCS
-     * [Log description]
+     * Creates a log by reading the persistent storage and loading whatever
+     * content of the log there is stored. After that the `entryAddress` array
+     * as well as `latestTerm` and `nextEntry` are filled with proper values.
      */
     Log();
 
+
     /**
-     * TODO: DOCS
-     * [append description]
-     * @param  newEntry [description]
-     * @return          [description]
+     * Appends a log entry to the data buffer if `NUM_LOG_ENTRIES` is not
+     * exceeded as well as the `LOG_SIZE`.
+     * The new log entry is also automatically appended to the persistent
+     * storage (see rasp_fs.h)
+     * @param term          term when the log was appended by the leader
+     * @param data          pointer to the data to be appended
+     * @param size          size of data to be appended
      */
     void append(uint32_t term,
                 uint8_t *data,
                 uint16_t size);
 
+
     /**
-     * TODO: DOCS
-     * [readEntry description]
-     * @param  index [description]
-     * @return       [description]
+     * Returns the the sum of all log entry sized
+     * @return {uint32_t}   sum of log entries sizes
      */
-    logEntry_t read(uint32_t index);
+    uint16_t size();
 
 
     /**
-     * TODO: DOCS
-     * [size description]
-     * @return [description]
+     * Returns the last stored term number which is implicitly also the highest
+     * term number
+     * @return {uint32_t}       latest stored term number
      */
-    uint16_t    size();
+    uint32_t lastStoredTerm();
+
 
     /**
-     * TODO: DOCS
-     * [lastTerm description]
-     * @return [description]
+     * Prints the last log entry stored to the serial output
+     * @return {void}
      */
-    uint32_t    lastStoredTerm();
+    void printLastEntry();
+
 
     /**
-     * TODO: DOCS
-     * [printLastEntry description]
-     * @return [description]
+     * Returns a logEntry_t struct with values of the last log entry stored in
+     * the log
+     * @return {logEntry_t}     pointer to the log entry struct
      */
-    void        printLastEntry();
+    logEntry_t lastEntry();
+
 
     /**
-     * TODO: DOCS
-     * [lastEntry description]
-     * @return [description]
+     * Returns the index of the last entry that was stored in the log
+     * @return {uint16_t}       index of last entry
      */
-    logEntry_t  lastEntry();
+    uint16_t lastIndex();
+
 
     /**
-     * NOTE: we count log indexes begining at 1 and not with 0 like arrays
-     * TODO: DOCS
-     * [lastIndex description]
-     * @return [description]
-     */
-    uint16_t    lastIndex();
-
-    /**
-     * TODO: DOCS
-     * [getEntry description]
-     * @param  index [description]
-     * @return       [description]
+     * Creates a logEntry_t struct with values specified by the index parameter
+     * @param  index                index out of which the log entry is created
+     * @return {logEntry_t}         pointer to the log entry struct
      */
     logEntry_t* getEntry(uint16_t index);
 
+
     /**
-     * TODO: DOCS
-     * [getTerm description]
-     * @param  index [description]
-     * @return       [description]
+     * Returns the term number when the specified index was appended (the term
+     * number of the leader that appended the entry is meant) or 0 if the index
+     * does not exist.
+     * @param  index            index of entry
+     * @return {uint32_t}       term of requested index
      */
-    uint32_t    getTerm(uint16_t index);
+    uint32_t getTerm(uint16_t index);
 
 
     /**
-     * TODO: DOCS
-     * [lastEntryAddress description]
-     * @return [description]
+     * Truncates the byte buffer so that everything after the specified index
+     * is ignored and considered not existent. That means appending new entries
+     * after this function was called leads to appending entries after the
+     * specified index.
      */
     void truncate(uint16_t index);
 
 
     /**
-     * TODO: DOCS
-     * [exist description]
-     * @param  index [description]
-     * @return       [description]
+     * Indicates wether an entry at the specified index exist or not.
+     * @param  index        specifies the entry for which to check if it exsit
+     * @return {bool}
      */
     bool exist(uint16_t index);
 
@@ -145,21 +158,25 @@ private:
     /**
      * Retrieves the offset at which position in the byte buffer the start of
      * the last entry is stored.
-     * @return [description]
      */
     uint16_t lastEntryAddress();
 
+
     /**
-     * [getPointer description]
-     * @param  index [description]
-     * @return       [description]
+     * Returns a pointer to the requested entry specified by the `index`
+     * parameter or NULL if the entry does not exist.
+     * @param  index            specified the pointer to the entry to return
+     * @return {uint8_t*}       pointer to the requested entry
      */
     uint8_t* getPointer(uint16_t index);
 
+
     uint16_t nextEntry;
+
+
     uint32_t latestTerm;
 
-    // the actual log byte buffer
+    // the actual data byte buffer
     uint8_t data[LOG_SIZE];
 
     // stores for every log entry the proper offset in the data[] buffer

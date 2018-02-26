@@ -4,15 +4,15 @@
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
 
+#define SSID "PiFun1337"
+#define SSID_PW "RaSpFun1337!!"
+
 /**
- * TODO: DOCS
- * [connectToWiFi description]
+ * Establishes a wifi connection to the in the function specified SSID.
+ * This function is meant to be called once in arduino's setup() function.
  */
 void connectToWiFi() {
-    const char ssid[] = "PiFun1337";
-    const char pw[]   = "RaSpFun1337!!";
-
-    WiFi.begin(ssid, pw);
+    WiFi.begin(SSID, SSID_PW);
 
     Serial.println("Mac-Address: " + WiFi.macAddress());
     Serial.print("Waiting for WiFi connection");
@@ -21,7 +21,8 @@ void connectToWiFi() {
         delay(500);
         Serial.print(".");
     }
-    Serial.println("\nConnected to: " + String(ssid));
+
+    Serial.printf("\nConnected to: %s\n", SSID);
     Serial.println("Static IP: " + WiFi.localIP().toString());
 }
 

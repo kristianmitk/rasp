@@ -13,24 +13,24 @@ extern "C" {
  * -----------------------------------------------------------------------------
  * Chip-ID/Mac-Address/IP-Address of every node in the actual cluster.
  * -----------------------------------------------------------------------------
- * ChipID 42712
+ * chipId 42712
  *  dhcp-host=2C:3A:E8:00:A6:D8,dev-thing-1,192.168.1.21
- * ChipID 44293
+ * chipId 44293
  *  dhcp-host=2C:3A:E8:00:AD:05,dev-thing-2,192.168.1.22
- * ChipID 9085487
+ * chipId 9085487
  *  dhcp-host=5C:CF:7F:8A:A2:2F,dev-thing-3,192.168.1.23
- * ChipID 9053586
+ * chipId 9053586
  *  dhcp-host=5C:CF:7F:8A:25:92,dev-thing-4,192.168.1.24
  * -----------------------------------------------------------------------------
  */
 
-typedef struct rasp_server {
+typedef struct raspServer {
     uint8_t  IP[4];
     uint32_t ID;
-} rasp_server;
+} raspServer_t;
 
 // NOTE: server running this code is included as well
-const rasp_server servers[] = {
+const raspServer_t servers[] = {
     // { { 192, 168, 1, 21 }, 42712   },
     { { 192, 168, 1, 22 }, 44293   },
     { { 192, 168, 1, 23 }, 9085487 },

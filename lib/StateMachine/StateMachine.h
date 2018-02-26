@@ -3,9 +3,11 @@
 
 #include <Arduino.h>
 
-
 #define LED_PIN 5
 
+/**
+ * Simple binary state machine as an example/placeholder to debug
+ */
 class StateMachine {
 public:
 

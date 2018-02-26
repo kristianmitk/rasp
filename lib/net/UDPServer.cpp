@@ -9,7 +9,7 @@ void UDPServer::start() {
 // TODO: use one broadcast Message function
 void UDPServer::broadcastRequestVoteRPC(uint8_t *message) {
     for (int i = 0; i < RASP_NUM_SERVERS; i++) {
-        if (servers[i].ID != chipID) {
+        if (servers[i].ID != chipId) {
             Udp.beginPacket(servers[i].IP, RASP_DEFAULT_PORT);
             Udp.write((char *)message, REQ_VOTE_REQ_MSG_SIZE);
             Udp.endPacket();
@@ -23,7 +23,7 @@ void UDPServer::broadcastHeartbeat(uint8_t *message) {
     Serial.printf("Broadcasting heartbeat\n");
 
     for (int i = 0; i < RASP_NUM_SERVERS; i++) {
-        if (servers[i].ID != chipID) {
+        if (servers[i].ID != chipId) {
             Serial.printf("Sending heartbeat to: %s\n", servers[i].IP);
             Udp.beginPacket(servers[i].IP, RASP_DEFAULT_PORT);
             Udp.write((char *)message, EMPTY_HEARTBEAT_MSG_SIZE);

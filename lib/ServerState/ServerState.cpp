@@ -19,8 +19,8 @@ followerState_t * ServerState::getFollower(uint32_t id) {
 
 void ServerState::initialize() {
     receivedVotes   = 0;
-    currentTerm     = RASPFS::getInstance().read(RASPFS::CURRENT_TERM);
-    votedFor        = RASPFS::getInstance().read(RASPFS::VOTED_FOR);
+    currentTerm     = RASPFS::getInstance().readCurrentTerm();
+    votedFor        = RASPFS::getInstance().readVotedFor();
     commitIndex     = 0;
     lastApplied     = 0;
     log             = new Log();
@@ -31,7 +31,7 @@ void ServerState::initialize() {
     int idx = 0;
 
     for (int i = 0; i < RASP_NUM_SERVERS; i++) {
-        if (servers[i].ID != chipID) {
+        if (servers[i].ID != chipId) {
             followerStates[idx].id = servers[i].ID;
             memcpy(followerStates[idx].IP, servers[i].IP, 4);
             idx++;
@@ -110,7 +110,7 @@ Message * ServerState::handleRequestVoteReq(uint32_t term,
     }
 
     if (!this->votedFor || (this->currentTerm < term)) {
-        currentTerm = RASPFS::getInstance().write(RASPFS::CURRENT_TERM, term);
+        currentTerm = RASPFS::getInstance().writeCurrentTerm(term);
         role        = FOLLOWER;
         rvRes.term  = term;
 
@@ -121,8 +121,7 @@ Message * ServerState::handleRequestVoteReq(uint32_t term,
         {
             Serial.println("VoteGranted = true");
 
-            votedFor = RASPFS::getInstance().write(RASPFS::VOTED_FOR,
-                                                   candidateID);
+            votedFor          = RASPFS::getInstance().writeVotedFor(candidateID);
             rvRes.voteGranted = true;
         } else {
             return &rvRes;
@@ -166,7 +165,7 @@ void ServerState::handleRequestVoteRes(uint32_t term, uint8_t  voteGranted) {
         }
 
         if (this->currentTerm < term) {
-            currentTerm = RASPFS::getInstance().write(RASPFS::CURRENT_TERM, term);
+            currentTerm = RASPFS::getInstance().writeCurrentTerm(term);
             role        = FOLLOWER;
         }
     }
@@ -185,7 +184,7 @@ void ServerState::checkElectionTimeout() {
     rvReq = RequestVoteRequest();
 
     if (millis() > lastTimeout + electionTimeout) {
-        RASPFS::getInstance().write(RASPFS::CURRENT_TERM, (++this->currentTerm));
+        RASPFS::getInstance().writeCurrentTerm(++this->currentTerm);
         printEventHeader(currentTerm);
         Serial.printf(
             "\n[WARN] Election timout. Starting a new election on term: %d\n",
@@ -195,11 +194,11 @@ void ServerState::checkElectionTimeout() {
 
 
         // starting a new election always results in first voting for itself
-        votedFor      = RASPFS::getInstance().write(RASPFS::VOTED_FOR, chipID);
+        votedFor      = RASPFS::getInstance().writeVotedFor(chipId);
         receivedVotes = 1;
 
         rvReq.term         = this->currentTerm;
-        rvReq.candidateID  = chipID;
+        rvReq.candidateID  = chipId;
         rvReq.lastLogIndex = this->log->lastIndex();
         rvReq.lastLogTerm  = this->log->lastStoredTerm();
 
@@ -238,7 +237,7 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
     aeRes.term       = currentTerm;
     aeRes.success    = 0;
     aeRes.matchIndex = 0;
-    aeRes.serverId   = chipID;
+    aeRes.serverId   = chipId;
 
     // (§5.1)
     if (currentTerm > p->term) {
@@ -248,7 +247,7 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
 
     if (p->term > currentTerm) {
         Serial.printf("p->term > currentTerm\n");
-        currentTerm = RASPFS::getInstance().write(RASPFS::CURRENT_TERM, p->term);
+        currentTerm = RASPFS::getInstance().writeCurrentTerm(p->term);
         aeRes.term  = currentTerm;
     }
 
@@ -322,7 +321,7 @@ void ServerState::handleAppendEntriesRes(Message *msg) {
     p->serialPrint();
 
     if (p->term > currentTerm) {
-        currentTerm = RASPFS::getInstance().write(RASPFS::CURRENT_TERM, p->term);
+        currentTerm = RASPFS::getInstance().writeCurrentTerm(p->term);
         this->role  = FOLLOWER;
         return;
     }
@@ -338,7 +337,7 @@ void ServerState::handleAppendEntriesRes(Message *msg) {
         uint16_t sendIndex = fstate->nextIndex - 1;
 
         aeReq.term         = currentTerm;
-        aeReq.leaderId     = chipID;
+        aeReq.leaderId     = chipId;
         aeReq.leaderCommit = commitIndex;
         aeReq.prevLogIndex = sendIndex;
 
@@ -364,7 +363,7 @@ void ServerState::handleAppendEntriesRes(Message *msg) {
     } else {
         if (fstate->nextIndex <= this->log->lastIndex()) {
             aeReq.term         = currentTerm;
-            aeReq.leaderId     = chipID;
+            aeReq.leaderId     = chipId;
             aeReq.leaderCommit = commitIndex;
             aeReq.prevLogIndex = fstate->nextIndex - 1;
             aeReq.prevLogTerm  = this->log->getTerm(fstate->nextIndex - 1);
@@ -425,7 +424,7 @@ void ServerState::checkHeartbeatTimeouts() {
                           followerStates[i].nextIndex);
 
             aeReq.term         = currentTerm;
-            aeReq.leaderId     = chipID;
+            aeReq.leaderId     = chipId;
             aeReq.dataSize     = 0;
             aeReq.dataTerm     = 0;
             aeReq.leaderCommit = commitIndex;
