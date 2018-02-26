@@ -3,7 +3,7 @@
 
 #include <Arduino.h>
 #include "rasp_fs.h"
-#include "util.h"
+
 
 extern "C" {
     #include "stdint.h"
@@ -16,6 +16,22 @@ extern "C" {
 // we use a fixed array rather than dynamic structures to avoid memory
 // fragmentation
 #define NUM_LOG_ENTRIES 512
+
+/**
+ * Struct representing one dynamic sized log entry.
+ * An entry stores:
+ *      - the term in which the entry was created and appended to the log
+ *      - the size of the data block
+ *      - a pointer to the begining of the data block
+ * This struct is only instanciated when a specific entry of the log is
+ * requested by the `getEntry(uint16_t index)` function
+ */
+typedef struct LogEntry {
+    uint32_t term;
+    uint16_t size;
+    void    *data;
+} logEntry_t;
+
 
 /**
  * The in memory representation of the Log. If you are looking for the
@@ -60,37 +76,69 @@ public:
      * [size description]
      * @return [description]
      */
-    uint16_t   size();
+    uint16_t    size();
 
     /**
      * TODO: DOCS
      * [lastTerm description]
      * @return [description]
      */
-    uint32_t   lastStoredTerm();
+    uint32_t    lastStoredTerm();
 
     /**
      * TODO: DOCS
      * [printLastEntry description]
      * @return [description]
      */
-    void       printLastEntry();
+    void        printLastEntry();
 
     /**
      * TODO: DOCS
      * [lastEntry description]
      * @return [description]
      */
-    logEntry_t lastEntry();
+    logEntry_t  lastEntry();
 
     /**
+     * NOTE: we count log indexes begining at 1 and not with 0 like arrays
      * TODO: DOCS
      * [lastIndex description]
      * @return [description]
      */
-    uint16_t   lastIndex();
+    uint16_t    lastIndex();
 
-    logEntry_t getEntry(uint16_t index);
+    /**
+     * TODO: DOCS
+     * [getEntry description]
+     * @param  index [description]
+     * @return       [description]
+     */
+    logEntry_t* getEntry(uint16_t index);
+
+    /**
+     * TODO: DOCS
+     * [getTerm description]
+     * @param  index [description]
+     * @return       [description]
+     */
+    uint32_t    getTerm(uint16_t index);
+
+
+    /**
+     * TODO: DOCS
+     * [lastEntryAddress description]
+     * @return [description]
+     */
+    void truncate(uint16_t index);
+
+
+    /**
+     * TODO: DOCS
+     * [exist description]
+     * @param  index [description]
+     * @return       [description]
+     */
+    bool exist(uint16_t index);
 
 private:
 

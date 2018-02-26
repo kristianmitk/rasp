@@ -49,6 +49,10 @@ void RequestVoteRequest::serialPrint() {
                   );
 }
 
+size_t RequestVoteRequest::size() {
+    return REQ_VOTE_REQ_MSG_SIZE;
+}
+
 /**
  * ---------------------------- RequestVoteResponse ----------------------------
  */
@@ -84,47 +88,149 @@ void RequestVoteResponse::serialPrint() {
                   );
 }
 
+size_t RequestVoteResponse::size() {
+    return REQ_VOTE_RES_MSG_SIZE;
+}
+
+/**
+ * --------------------------- AppendEntriesRequest ----------------------------
+ */
+
+AppendEntriesRequest::AppendEntriesRequest() {
+    this->type     = Message::AppendEntriesReq;
+    this->dataSize = 0;
+}
+
+AppendEntriesRequest::AppendEntriesRequest(uint8_t *packet, uint16_t size) {
+    this->type         = Message::AppendEntriesReq;
+    this->term         = unpack_uint32_t(packet, PACKET_BODY_OFFSET);
+    this->leaderId     = unpack_uint32_t(packet, PACKET_BODY_OFFSET + 4);
+    this->prevLogIndex = unpack_uint16_t(packet, PACKET_BODY_OFFSET + 8);
+    this->prevLogTerm  = unpack_uint32_t(packet, PACKET_BODY_OFFSET + 10);
+    this->leaderCommit = unpack_uint16_t(packet, PACKET_BODY_OFFSET + 14);
+
+    // TODO: optimize this by putting it into the data block and not sending
+    // unnecessary 4 bytes in a empty heartbeat message
+    this->dataTerm = unpack_uint32_t(packet, PACKET_BODY_OFFSET + 16);
+
+    // TODO: better doc, its lateee and I'm yawning
+    // We dont need to send the dataSize as we can deduce this from packetSize
+    // and empty heartbeat message (i.e everything in the message except the
+    // data)
+    this->dataSize = size - EMPTY_HEARTBEAT_MSG_SIZE;
+
+    this->data = this->dataSize ? packet + EMPTY_HEARTBEAT_MSG_SIZE : NULL;
+}
+
+uint8_t * AppendEntriesRequest::marshall() {
+    uint8_t *buffer = new uint8_t[EMPTY_HEARTBEAT_MSG_SIZE + this->dataSize];
+
+    pack_uint8_t(buffer, 0, Message::AppendEntriesReq);
+    pack_uint32_t(buffer, PACKET_BODY_OFFSET,     this->term);
+    pack_uint32_t(buffer, PACKET_BODY_OFFSET + 4, this->leaderId);
+    pack_uint16_t(buffer, PACKET_BODY_OFFSET + 8, this->prevLogIndex);
+    pack_uint32_t(buffer, PACKET_BODY_OFFSET + 10, this->prevLogTerm);
+    pack_uint16_t(buffer, PACKET_BODY_OFFSET + 14, this->leaderCommit);
+    pack_uint32_t(buffer, PACKET_BODY_OFFSET + 16, this->dataTerm);
+
+    if (this->dataSize) memcpy(&buffer[EMPTY_HEARTBEAT_MSG_SIZE],
+                               this->data,
+                               this->dataSize);
+    return buffer;
+}
+
+void AppendEntriesRequest::serialPrint() {
+    Serial.printf("AppendEntries request message \
+                \n%-20s%-20s%-20s%-20s%-20s\n",
+                  "term",
+                  "leaderId",
+                  "prevLogIndex",
+                  "prevLogTerm",
+                  "leaderCommit"
+                  );
+    Serial.printf("%-20lu%-20lu%-20lu%-20lu%-20lu\n",
+                  this->term,
+                  this->leaderId,
+                  this->prevLogIndex,
+                  this->prevLogTerm,
+                  this->leaderCommit
+                  );
+    Serial.printf("Data Size is: %lub\n", this->dataSize);
+}
+
+size_t AppendEntriesRequest::size() {
+    return EMPTY_HEARTBEAT_MSG_SIZE + this->dataSize;
+}
+
 /**
  * --------------------------- AppendEntriesResponse ---------------------------
  */
 
-AppendEntriesRequest::AppendEntriesRequest() {
-    this->type = Message::AppendEntriesReq;
-
-    // TODO: add missing stuff
+AppendEntriesResponse::AppendEntriesResponse() {
+    this->type = Message::AppendEntriesRes;
 }
 
-AppendEntriesRequest::AppendEntriesRequest(uint8_t *packet) {
-    this->type = Message::AppendEntriesReq;
-
-    // TODO: add missing stuff
+AppendEntriesResponse::AppendEntriesResponse(uint8_t *packet) {
+    this->type       = Message::AppendEntriesRes;
+    this->term       = unpack_uint32_t(packet, PACKET_BODY_OFFSET);
+    this->success    = unpack_uint8_t(packet, PACKET_BODY_OFFSET + 4);
+    this->matchIndex = unpack_uint16_t(packet, PACKET_BODY_OFFSET + 5);
+    this->serverId   = unpack_uint32_t(packet, PACKET_BODY_OFFSET + 7);
 }
 
-uint8_t * AppendEntriesRequest::marshall() {
-    // TODO implement
-    return NULL;
+uint8_t * AppendEntriesResponse::marshall() {
+    uint8_t *buffer = new uint8_t[APP_ENTRIES_RES_MSG_SIZE];
+
+    pack_uint8_t(buffer, 0, Message::AppendEntriesRes);
+    pack_uint32_t(buffer, PACKET_BODY_OFFSET, this->term);
+    pack_uint8_t(buffer, PACKET_BODY_OFFSET + 4, this->success);
+    pack_uint16_t(buffer, PACKET_BODY_OFFSET + 5, this->matchIndex);
+    pack_uint32_t(buffer, PACKET_BODY_OFFSET + 7, this->serverId);
+
+    return buffer;
 }
 
-void AppendEntriesRequest::serialPrint() {
-    // TODO: implement
+void AppendEntriesResponse::serialPrint() {
+    Serial.printf("AppendEntries response message \
+                \n%-25s%-25s%-25s%-25s\n",
+                  "term",
+                  "success",
+                  "matchIndex",
+                  "senderId"
+                  );
+    Serial.printf("%-25lu%-25lu%-25lu%-25lu\n",
+                  this->term,
+                  this->success,
+                  this->matchIndex,
+                  this->serverId
+                  );
+}
+
+size_t AppendEntriesResponse::size() {
+    return APP_ENTRIES_RES_MSG_SIZE;
 }
 
 /**
  * ---------------------------         OTHER         ---------------------------
  */
-Message* a(uint8_t *packet) {
+Message* a(uint8_t *packet, uint16_t size) {
     rvReq = RequestVoteRequest(packet);
     return &rvReq;
 }
 
-Message* b(uint8_t *packet) {
+Message* b(uint8_t *packet, uint16_t size) {
     rvRes = RequestVoteResponse(packet);
     return &rvRes;
 }
 
-Message* c(uint8_t *packet) {
-    aeReq = AppendEntriesRequest(packet);
+Message* c(uint8_t *packet, uint16_t size) {
+    aeReq = AppendEntriesRequest(packet, size);
     return &aeReq;
+}
+
+Message* d(uint8_t *packet, uint16_t size) {
+    aeRes = AppendEntriesResponse(packet);
+    return &aeRes;
 }
 
 /**
@@ -134,13 +240,14 @@ Message* c(uint8_t *packet) {
  * @param  packet [description]
  * @return        [description]
  */
-Message * (*messageExtractors[3])(uint8_t * packet) = { a, b, c };
+Message * (*messageExtractors[4])(uint8_t * packet,
+                                  uint16_t size) = { a, b, c, d };
 
-Message* createMessage(uint8_t *packet) {
+Message* createMessage(uint8_t *packet, uint16_t size) {
     uint8_t messageType = unpack_uint8_t(packet, 0);
 
-    Serial.printf("\nMessageType: %d\n", messageType);
+    Serial.printf("MessageType: %d\n", messageType);
 
     return messageType < Message::lastVal ?
-           messageExtractors[messageType](packet) : NULL;
+           messageExtractors[messageType](packet, size) : NULL;
 }

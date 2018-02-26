@@ -5,15 +5,6 @@ extern "C" {
     #include <stdint.h>
 }
 
-#define RASP_NUM_SERVERS  4
-#define RASP_DEFAULT_PORT 1337
-
-
-typedef struct rasp_server {
-    const char *IP;
-    uint32_t    ID;
-} rasp_server;
-
 /**
  * -----------------------------------------------------------------------------
  * NOTE: Currently servers are static, so membership changes are not possible.
@@ -33,11 +24,19 @@ typedef struct rasp_server {
  * -----------------------------------------------------------------------------
  */
 
+typedef struct rasp_server {
+    uint8_t  IP[4];
+    uint32_t ID;
+} rasp_server;
+
 // NOTE: server running this code is included as well
-const rasp_server servers[RASP_NUM_SERVERS] = {
-    { "192.168.1.21", 42712   },
-    { "192.168.1.22", 44293   },
-    { "192.168.1.23", 9085487 },
-    { "192.168.1.24", 9053586 },
+const rasp_server servers[] = {
+    // { { 192, 168, 1, 21 }, 42712   },
+    { { 192, 168, 1, 22 }, 44293   },
+    { { 192, 168, 1, 23 }, 9085487 },
+    { { 192, 168, 1, 24 }, 9053586 },
 };
+
+const uint8_t RASP_NUM_SERVERS = sizeof(servers) / sizeof(servers[0]);
+
 #endif // ifndef rasp_nodes_h

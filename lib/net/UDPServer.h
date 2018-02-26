@@ -3,16 +3,36 @@
 
 #include "Arduino.h"
 #include "WiFiUdp.h"
+#include "common.h"
+#include "env.h"
 #include "messages.h"
 #include "rasp_nodes.h"
 #include "marshall.h"
+#include "ServerState.h"
 
 // TODO: outsource constants
-#define UDP_INCOMING_BUFFER_SIZE 128 // TODO: SET TO MAX PACKET SIZE
-#define UDP_PORT 1337
 
+// 512b for entries data + 17 for the other stuff needed in a AppendEntries req
+#define UDP_INCOMING_BUFFER_SIZE 529
+
+// default port
+#define RASP_DEFAULT_PORT 1337
+
+/**
+ * Singleton class that handles in/out messaging between peers
+ * TODO: DOCS
+ * [getInstance description]
+ * @return [description]
+ */
 class UDPServer {
 public:
+
+    static UDPServer& getInstance()
+    {
+        static UDPServer instance;
+
+        return instance;
+    }
 
     /**
      * TODO: DOCS
@@ -32,7 +52,7 @@ public:
      * TODO: DOCS
      * [broadcastHeartbeat description]
      */
-    void     broadcastHeartbeat();
+    void     broadcastHeartbeat(uint8_t *message);
 
     /**
      * TODO: DOCS
@@ -63,10 +83,22 @@ public:
     void     sendPacket(uint8_t *buffer,
                         size_t   size);
 
+    /**
+     * TODO: DOCS
+     * [sendPacket description]
+     * @param buffer [description]
+     * @param size   [description]
+     * @param IP     [description]
+     */
+    void sendPacket(uint8_t *buffer,
+                    size_t   size,
+                    uint8_t  IP[4]);
+
 private:
 
     WiFiUDP Udp;
     uint8_t packetBuffer[UDP_INCOMING_BUFFER_SIZE];
+    uint16_t currentPacketSize;
 
     /**
      * TODO: DOCS
@@ -75,6 +107,14 @@ private:
     void clearBuffer();
 
     IPAddress sender;
+
+    UDPServer(UDPServer const&);
+    void operator=(UDPServer const&);
+
+    /**
+     * Constructor is private so we guarantee a singleton
+     */
+    UDPServer() {}
 };
 
 

@@ -7,17 +7,18 @@
 #include "messages.h"
 #include "rasp_nodes.h"
 #include "rasp_fs.h"
-extern "C" {
-    #include <stdint.h>
-}
+#include "UDPServer.h"
 
-#define NUM_FOLLOWER_STATES RASP_NUM_SERVERS - 1
+#define NUM_FOLLOWERS RASP_NUM_SERVERS - 1
 
+// TODO: remove redundancies with `rasp_nodes.h` server array
 typedef struct followerState {
+    uint8_t  IP[4];
     uint32_t id;
     uint16_t nextIndex;
     uint16_t matchIndex;
-} followerState;
+    uint32_t lastTimeout;
+} followerState_t;
 
 
 /**
@@ -40,12 +41,12 @@ public:
         LEADER
     };
 
-    /**
-     * TODO: DOCS
-     * [ServerState description]
-     * @param id [description]
-     */
-    ServerState();
+    static ServerState& getInstance()
+    {
+        static ServerState instance;
+
+        return instance;
+    }
 
     /**
      * This function handles actually what the empty constructor could do.
@@ -64,6 +65,25 @@ public:
      */
     void serialPrint();
 
+    /**
+     * TODO: DOCS
+     * [loopHandler description]
+     */
+    void loopHandler();
+
+
+    /**
+     * TODO: DOCS
+     * [getRole description]
+     * @return [description]
+     */
+    Role     getRole();
+
+    uint32_t getCurrentTerm() {
+        return this->currentTerm;
+    }
+
+private:
 
     /**
      * TODO: DOCS
@@ -71,15 +91,14 @@ public:
      * @param  msg [description]
      * @return     [description]
      */
-    Message* dispatch(Message *msg);
-
+    void handleMessage();
 
     /**
      * TODO: DOCS
      * [checkElectionTimeout description]
      * @return [description]
      */
-    Message* checkElectionTimeout();
+    void checkElectionTimeout();
 
 
     /**
@@ -122,44 +141,58 @@ public:
      */
     void handleRequestVoteRes(Message *msg);
 
+
+    /**
+     * TODO: DOCS
+     * [handleAppendEntriesReq description]
+     * @param  msg [description]
+     * @return     [description]
+     */
+    Message* handleAppendEntriesReq(Message *msg);
+
+    /**
+     * TODO: DOCS
+     * [handleAppendEntriesRes description]
+     * @param  msg [description]
+     * @return     [description]
+     */
+    void     handleAppendEntriesRes(Message *msg);
+
+
     /**
      * TODO: DOCS
      * [resetElectionTimeout description]
      */
-    void resetElectionTimeout();
+    void             resetElectionTimeout();
 
     /**
      * TODO: DOCS
      * [checkHeartbeatTimeout description]
      * @return [description]
      */
-    void resetElectionTimeout(uint8_t placeholder);
+    void             checkHeartbeatTimeouts();
 
-
-    /**
-     * TODO: DOCS
-     * [getRole description]
-     * @return [description]
-     */
-    Role    getRole();
+    void             DEBUG_APPEND_LOG();
 
     /**
      * TODO: DOCS
-     * [checkHeartbeatTimeout description]
-     * @return [description]
+     * [ServerState::checkForNewCommitedIndex description]
      */
-    uint8_t checkHeartbeatTimeout();
+    void             checkForNewCommitedIndex();
 
-
-    void    DEBUG_APPEND_LOG();
-
-private:
+    /**
+     * TODO: DOCS
+     * [getFollower description]
+     * @param  id [description]
+     * @return    [description]
+     */
+    followerState_t* getFollower(uint32_t id);
 
     /**
      * TODO: DOCS
      * [ServerState::checkGrantedVotes description]
      */
-    void checkGrantedVotes();
+    void             checkGrantedVotes();
 
     // own chipID used as an ID to identify a server
     uint32_t selfID;
@@ -187,10 +220,22 @@ private:
     uint32_t lastApplied;
 
     // -------- volatile state as leader
-    followerState followerStates[NUM_FOLLOWER_STATES];
+    followerState_t followerStates[NUM_FOLLOWERS];
 
     uint16_t electionTimeout;
     uint16_t heartbeatTimeout;
+
+
+    /**
+     * TODO: DOCS
+     * [ServerState description]
+     * @param id [description]
+     */
+    ServerState() {}
+
+
+    ServerState(ServerState const&);
+    void operator=(ServerState const&);
 };
 
 #endif // ifndef ServerState_h
