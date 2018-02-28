@@ -1,16 +1,15 @@
 #ifndef messages_h
-#include <Arduino.h>
-
-#include "marshall.h"
 #define messages_h
-extern "C" {
-    #include <stdint.h>
-}
 
-#define REQ_VOTE_REQ_MSG_SIZE 15
-#define REQ_VOTE_RES_MSG_SIZE 6
-#define EMPTY_HEARTBEAT_MSG_SIZE 21
-#define APP_ENTRIES_RES_MSG_SIZE 12
+#include <Arduino.h>
+#include "marshall.h"
+
+#define PACKET_BODY_OFFSET 1
+
+#define REQ_VOTE_REQ_MSG_SIZE (PACKET_BODY_OFFSET + 14)
+#define REQ_VOTE_RES_MSG_SIZE (PACKET_BODY_OFFSET + 5)
+#define EMPTY_HEARTBEAT_MSG_SIZE (PACKET_BODY_OFFSET + 20)
+#define APP_ENTRIES_RES_MSG_SIZE (PACKET_BODY_OFFSET + 11)
 
 /**
  * TODO: DOCS

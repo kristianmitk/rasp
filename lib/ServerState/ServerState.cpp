@@ -1,5 +1,6 @@
 #include "ServerState.h"
 #include "StateMachine.h"
+#include "Log.h"
 
 // TODO: outsource boundaries to a config file
 // TODO: improve timeouts
@@ -10,6 +11,7 @@
 
 #define MAJORITY (RASP_NUM_SERVERS / 2 + 1)
 
+#define _LOG Log::getInstance()
 
 followerState_t * ServerState::getFollower(uint32_t id) {
     for (int i = 0; i < NUM_FOLLOWERS; i++) {
@@ -18,15 +20,16 @@ followerState_t * ServerState::getFollower(uint32_t id) {
 }
 
 void ServerState::initialize() {
+    leaderId        = 0;
     receivedVotes   = 0;
-    currentTerm     = RASPFS::getInstance().readCurrentTerm();
-    votedFor        = RASPFS::getInstance().readVotedFor();
     commitIndex     = 0;
     lastApplied     = 0;
-    log             = new Log();
     role            = FOLLOWER;
+    currentTerm     = RASPFS::getInstance().readCurrentTerm();
+    votedFor        = RASPFS::getInstance().readVotedFor();
     electionTimeout = generateTimeout();
     lastTimeout     = millis();
+    _LOG.initialize();
 
     int idx = 0;
 
@@ -45,7 +48,7 @@ void ServerState::loopHandler() {
     if (this->commitIndex > this->lastApplied) {
         printEventHeader(currentTerm);
         this->lastApplied++;
-        logEntry_t *entry = this->log->getEntry(this->lastApplied);
+        logEntry_t *entry = _LOG.getEntry(this->lastApplied);
         StateMachine::getInstance().apply(entry->data);
         free(entry);
     }
@@ -115,9 +118,9 @@ Message * ServerState::handleRequestVoteReq(uint32_t term,
         rvRes.term  = term;
 
         // SAFETY RULES (§5.2, §5.4)
-        if ((lastLogTerm > log->lastStoredTerm()) ||
-            ((lastLogTerm == log->lastStoredTerm()) &&
-             (lastLogIndex >= log->lastIndex())))
+        if ((lastLogTerm > _LOG.lastStoredTerm()) ||
+            ((lastLogTerm == _LOG.lastStoredTerm()) &&
+             (lastLogIndex >= _LOG.lastIndex())))
         {
             Serial.println("VoteGranted = true");
 
@@ -199,8 +202,8 @@ void ServerState::checkElectionTimeout() {
 
         rvReq.term         = this->currentTerm;
         rvReq.candidateID  = chipId;
-        rvReq.lastLogIndex = this->log->lastIndex();
-        rvReq.lastLogTerm  = this->log->lastStoredTerm();
+        rvReq.lastLogIndex = _LOG.lastIndex();
+        rvReq.lastLogTerm  = _LOG.lastStoredTerm();
 
         UDPServer::getInstance().broadcastRequestVoteRPC(rvReq.marshall());
         resetElectionTimeout();
@@ -216,7 +219,7 @@ void ServerState::checkGrantedVotes() {
 
         for (int i = 0; i < NUM_FOLLOWERS; i++) {
             followerStates[i].matchIndex  = 0;
-            followerStates[i].nextIndex   = log->lastIndex() + 1;
+            followerStates[i].nextIndex   = _LOG.lastIndex() + 1;
             followerStates[i].lastTimeout = millis();
         }
 
@@ -252,12 +255,12 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
     }
 
     if (p->leaderCommit > this->commitIndex) {
-        this->commitIndex = min(p->leaderCommit, this->log->lastIndex());
+        this->commitIndex = min(p->leaderCommit, _LOG.lastIndex());
     }
 
     role = FOLLOWER;
 
-    logEntry_t *prevEntry = this->log->getEntry(p->prevLogIndex);
+    logEntry_t *prevEntry = _LOG.getEntry(p->prevLogIndex);
 
 
     // check if entry exist at previous log index send from leader
@@ -273,13 +276,13 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
             aeRes.success    = 1;
 
             if (p->dataSize) {
-                if (this->log->exist(p->prevLogIndex + 1) &&
-                    (this->log->getTerm(p->prevLogIndex + 1) != p->dataTerm)) {
-                    this->log->truncate(p->prevLogIndex);
+                if (_LOG.exist(p->prevLogIndex + 1) &&
+                    (_LOG.getTerm(p->prevLogIndex + 1) != p->dataTerm)) {
+                    _LOG.truncate(p->prevLogIndex);
                 }
 
-                if (!this->log->getEntry(p->prevLogIndex + 1)) {
-                    this->log->append(p->dataTerm, p->data, p->dataSize);
+                if (!_LOG.getEntry(p->prevLogIndex + 1)) {
+                    _LOG.append(p->dataTerm, p->data, p->dataSize);
                 }
                 aeRes.matchIndex++;
             }
@@ -295,12 +298,12 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
             aeRes.matchIndex = p->prevLogIndex;
 
             if (p->dataSize) {
-                if (this->log->getTerm(p->prevLogIndex + 1) != p->dataTerm) {
-                    this->log->truncate(p->prevLogIndex);
+                if (_LOG.getTerm(p->prevLogIndex + 1) != p->dataTerm) {
+                    _LOG.truncate(p->prevLogIndex);
                 }
 
-                if (!this->log->getEntry(p->prevLogIndex + 1)) {
-                    this->log->append(p->dataTerm, p->data, p->dataSize);
+                if (!_LOG.getEntry(p->prevLogIndex + 1)) {
+                    _LOG.append(p->dataTerm, p->data, p->dataSize);
                     aeRes.matchIndex++;
                 } else {
                     Serial.println("Entry already appended!");
@@ -342,14 +345,14 @@ void ServerState::handleAppendEntriesRes(Message *msg) {
         aeReq.prevLogIndex = sendIndex;
 
         // returns 0 if index = 0
-        aeReq.prevLogTerm = this->log->getTerm(sendIndex);
+        aeReq.prevLogTerm = _LOG.getTerm(sendIndex);
         aeReq.dataSize    = 0;
         aeReq.dataTerm    = 0;
         aeReq.data        = NULL;
 
         logEntry_t *entry = NULL;
 
-        if (!sendIndex && (entry = this->log->getEntry(1))) {
+        if (!sendIndex && (entry = _LOG.getEntry(1))) {
             aeReq.dataSize = entry->size;
             aeReq.data     = (uint8_t *)entry->data;
             aeReq.dataTerm = entry->term;
@@ -361,19 +364,19 @@ void ServerState::handleAppendEntriesRes(Message *msg) {
             fstate->nextIndex,
             fstate->matchIndex);
     } else {
-        if (fstate->nextIndex <= this->log->lastIndex()) {
+        if (fstate->nextIndex <= _LOG.lastIndex()) {
             aeReq.term         = currentTerm;
             aeReq.leaderId     = chipId;
             aeReq.leaderCommit = commitIndex;
             aeReq.prevLogIndex = fstate->nextIndex - 1;
-            aeReq.prevLogTerm  = this->log->getTerm(fstate->nextIndex - 1);
+            aeReq.prevLogTerm  = _LOG.getTerm(fstate->nextIndex - 1);
             aeReq.dataSize     = 0;
             aeReq.dataTerm     = 0;
             aeReq.data         = NULL;
 
             logEntry_t *entry = NULL;
 
-            if (entry = this->log->getEntry(fstate->nextIndex)) {
+            if (entry = _LOG.getEntry(fstate->nextIndex)) {
                 aeReq.dataSize = entry->size;
                 aeReq.data     = (uint8_t *)entry->data;
                 aeReq.dataTerm = entry->term;
@@ -430,12 +433,12 @@ void ServerState::checkHeartbeatTimeouts() {
             aeReq.leaderCommit = commitIndex;
             aeReq.data         = NULL;
             aeReq.prevLogIndex = followerStates[i].nextIndex - 1;
-            aeReq.prevLogTerm  = log->getTerm(aeReq.prevLogIndex);
+            aeReq.prevLogTerm  = _LOG.getTerm(aeReq.prevLogIndex);
 
             // if there is anything to append, than do so
-            if (followerStates[i].nextIndex <= this->log->lastIndex()) {
+            if (followerStates[i].nextIndex <= _LOG.lastIndex()) {
                 logEntry_t *entry =
-                    this->log->getEntry(followerStates[i].nextIndex);
+                    _LOG.getEntry(followerStates[i].nextIndex);
                 aeReq.data     = (uint8_t *)entry->data;
                 aeReq.dataSize = entry->size;
                 aeReq.dataTerm = entry->term;
@@ -491,7 +494,7 @@ void ServerState::checkForNewCommitedIndex() {
     Serial.printf("Temp commit is: %d\n", tempCommit);
 
     if ((tempCommit > commitIndex) &&
-        (this->log->getTerm(tempCommit) == this->currentTerm)) {
+        (_LOG.getTerm(tempCommit) == this->currentTerm)) {
         this->commitIndex = tempCommit;
     }
 }
@@ -506,7 +509,7 @@ void ServerState::DEBUG_APPEND_LOG() {
             uint8_t  entryData[entrySize];
             entryData[0] = random(0, 2);
 
-            this->log->append(currentTerm, entryData, entrySize);
+            _LOG.append(currentTerm, entryData, entrySize);
         }
     }
 }

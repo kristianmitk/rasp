@@ -60,13 +60,11 @@ typedef struct LogEntry {
 class Log {
 public:
 
-    /**
-     * Creates a log by reading the persistent storage and loading whatever
-     * content of the log there is stored. After that the `entryAddress` array
-     * as well as `latestTerm` and `nextEntry` are filled with proper values.
-     */
-    Log();
+    static Log& getInstance() {
+        static Log instance;
 
+        return instance;
+    }
 
     /**
      * Appends a log entry to the data buffer if `NUM_LOG_ENTRIES` is not
@@ -153,7 +151,20 @@ public:
      */
     bool exist(uint16_t index);
 
+    /**
+     * Creates the log by reading the persistent storage and loading whatever
+     * is the content of the corresponding file. After that the `entryAddress`
+     * array as well as `latestTerm` and `nextEntry` are filled with proper
+     * values.
+     */
+    void initialize();
+
 private:
+
+    Log() {}
+
+    Log(Log const&);
+    void     operator=(Log const&);
 
     /**
      * Retrieves the offset at which position in the byte buffer the start of

@@ -2,7 +2,6 @@
 #define ServerState_h
 
 #include "Arduino.h"
-#include "Log.h"
 #include "common.h"
 #include "messages.h"
 #include "rasp_nodes.h"
@@ -194,8 +193,8 @@ private:
      */
     void             checkGrantedVotes();
 
-    // own chipId used as an ID to identify a server
-    uint32_t selfID;
+    // to redirect clients when they request a leader
+    uint32_t leaderId;
 
     // needed in order to check for electionTimeout (compared to millis())
     uint32_t lastTimeout;
@@ -213,7 +212,6 @@ private:
 
     // TODO: is here a string a better solution?
     uint32_t votedFor;
-    Log *log;
 
     // -------- volatile state
     uint32_t commitIndex;

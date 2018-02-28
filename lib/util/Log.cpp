@@ -33,7 +33,7 @@ bool validIndex(uint16_t index) {
     return (index > 0) && (index <= NUM_LOG_ENTRIES);
 }
 
-Log::Log() {
+void Log::initialize() {
     nextEntry  = 0;
     latestTerm = 0;
 

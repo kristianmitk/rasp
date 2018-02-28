@@ -1,7 +1,6 @@
 #include "Arduino.h"
 #include "messages.h"
 #include "marshall.h"
-#define PACKET_BODY_OFFSET 1
 
 // TODO: marshalling should return stack buffer instead of buffer pointer
 
@@ -240,7 +239,7 @@ Message* d(uint8_t *packet, uint16_t size) {
  * @param  packet [description]
  * @return        [description]
  */
-Message * (*messageExtractors[4])(uint8_t * packet,
+Message * (*messageGenerators[4])(uint8_t * packet,
                                   uint16_t size) = { a, b, c, d };
 
 Message* createMessage(uint8_t *packet, uint16_t size) {
@@ -249,5 +248,5 @@ Message* createMessage(uint8_t *packet, uint16_t size) {
     Serial.printf("MessageType: %d\n", messageType);
 
     return messageType < Message::lastVal ?
-           messageExtractors[messageType](packet, size) : NULL;
+           messageGenerators[messageType](packet, size) : NULL;
 }
