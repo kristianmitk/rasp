@@ -2,13 +2,15 @@
 #define StateMachine_h
 
 #include <Arduino.h>
+#include "SM_Interface.h"
+#include "marshall.h"
 
 #define LED_PIN 5
 
 /**
  * Simple binary state machine as an example/placeholder to debug
  */
-class StateMachine {
+class StateMachine : SM_Interface {
 public:
 
     static StateMachine& getInstance() {
@@ -26,6 +28,20 @@ public:
         } else {
             digitalWrite(LED_BUILTIN, LOW);
         }
+    }
+
+    /**
+     * This function serves for read requests on the state machine.
+     * Depending on the passed data it will return whatever was requested.
+     * It is hold as generic as possible
+     * @param  data data needed in order to indentify request
+     * @return      byte buffer holding requested data
+     */
+    uint8_t* read(const void *data) {
+        uint8_t *buffer = new uint8_t[1];
+
+        buffer[0] = this->state;
+        return buffer;
     }
 
 private:
