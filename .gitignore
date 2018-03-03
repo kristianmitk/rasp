@@ -11,3 +11,4 @@ lib/readme.txt
 # other
 notes/
 log/
+lib/util/rasp_nodes.h
