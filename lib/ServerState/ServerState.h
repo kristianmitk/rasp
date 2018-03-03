@@ -169,6 +169,13 @@ private:
      */
     void             checkGrantedVotes();
 
+    /**
+     * TODO: DOCS
+     * [createAERequest description]
+     */
+    void             createAERequestMessage(followerState_t *fstate,
+                                            bool             success);
+
     // to redirect clients when they request a leader
     uint32_t leaderId;
 

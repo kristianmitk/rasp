@@ -248,8 +248,8 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
 
     if (p->term > currentTerm) {
         Serial.printf("p->term > currentTerm\n");
-        currentTerm = RASPFS::getInstance().writeCurrentTerm(p->term);
-        aeRes.term  = currentTerm;
+        this->currentTerm = RASPFS::getInstance().writeCurrentTerm(p->term);
+        aeRes.term        = currentTerm;
     }
 
     if (p->leaderCommit > this->commitIndex) {
@@ -260,55 +260,29 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
 
     logEntry_t *prevEntry = _LOG.getEntry(p->prevLogIndex);
 
+    // Case 1:
+    //      Previous entry exist and the term numbers do match with the leader
+    // Case 2:
+    //      Previous entry does not exist, also not at the leader log
+    //          -> potential appending of first entry, if message carries data
+    if ((prevEntry && (prevEntry->term == p->prevLogTerm)) ||
+        (!prevEntry && !p->prevLogIndex && !p->prevLogTerm)) {
+        aeRes.success    = 1;
+        aeRes.matchIndex = p->prevLogIndex;
 
-    // check if entry exist at previous log index send from leader
-    if (prevEntry) {
-        Serial.printf("Entry exist! Size of data: %lu and term:%lu\n",
-                      prevEntry->size,
-                      prevEntry->term);
-
-        // (§5.3)
-        if (prevEntry->term == p->prevLogTerm) {
-            Serial.printf("prev Entries do match!\n");
-            aeRes.matchIndex = p->prevLogIndex;
-            aeRes.success    = 1;
-
-            if (p->dataSize) {
-                if (_LOG.exist(p->prevLogIndex + 1) &&
-                    (_LOG.getTerm(p->prevLogIndex + 1) != p->dataTerm)) {
-                    _LOG.truncate(p->prevLogIndex);
-                }
-
-                if (!_LOG.getEntry(p->prevLogIndex + 1)) {
-                    _LOG.append(p->dataTerm, p->data, p->dataSize);
-                }
-                aeRes.matchIndex++;
+        if (p->dataSize) {
+            if (_LOG.exist(p->prevLogIndex + 1) &&
+                (_LOG.getTerm(p->prevLogIndex + 1) != p->dataTerm)) {
+                _LOG.truncate(p->prevLogIndex);
             }
-        } else {
-            Serial.printf("prevEntry.term != p->prevLogTerm\n");
-        }
-    } else {
-        Serial.println("entry does not exist!");
 
-        if (!p->prevLogIndex && !p->prevLogTerm) {
-            Serial.println("index=0, term=0");
-            aeRes.success    = 1;
-            aeRes.matchIndex = p->prevLogIndex;
-
-            if (p->dataSize) {
-                if (_LOG.getTerm(p->prevLogIndex + 1) != p->dataTerm) {
-                    _LOG.truncate(p->prevLogIndex);
-                }
-
-                if (!_LOG.getEntry(p->prevLogIndex + 1)) {
-                    _LOG.append(p->dataTerm, p->data, p->dataSize);
-                    aeRes.matchIndex++;
-                } else {
-                    Serial.println("Entry already appended!");
-                }
+            if (!_LOG.getEntry(p->prevLogIndex + 1)) {
+                _LOG.append(p->dataTerm, p->data, p->dataSize);
+                aeRes.matchIndex++;
             }
         }
     }
+
     free(prevEntry);
     resetElectionTimeout();
     return &aeRes;
@@ -345,9 +319,9 @@ Message * ServerState::handleAppendEntriesRes(Message *msg) {
     if (!p->success) {
         // make sure we never get under 1 - this may happen due to multiple
         // AE arriving
-        fstate->nextIndex -= fstate->nextIndex == 1 ? 0 : 1;
+        fstate->nextIndex = max((fstate->nextIndex - 1), 1);
 
-        // fstate->nextIndex  = max((fstate->nextIndex - 1), 1);
+        // fstate->nextIndex -= fstate->nextIndex == 1 ? 0 : 1;
 
         Serial.printf(
             "Sending a decremented AE with nextIndex:%d, matchIndex:%d\n",
@@ -361,33 +335,7 @@ Message * ServerState::handleAppendEntriesRes(Message *msg) {
     }
 
     uint16_t prevIndex = fstate->nextIndex - 1;
-
-    aeReq.term         = currentTerm;
-    aeReq.leaderId     = chipId;
-    aeReq.leaderCommit = commitIndex;
-    aeReq.prevLogIndex = prevIndex;
-    aeReq.prevLogTerm  = _LOG.getTerm(prevIndex);
-    aeReq.dataSize     = 0;
-    aeReq.dataTerm     = 0;
-    aeReq.data         = NULL;
-
-    logEntry_t *entry = _LOG.getEntry(fstate->nextIndex);
-
-    // Case 1:
-    //      Either we had success and there is still data do be send
-    //      (p->success && (fstate->nextIndex <= _LOG.lastIndex()) && entry)
-    // Case 2:
-    //      We had no success and the nextIndex would be the first entry in the
-    //      log - for that one we dont have to check if previous entries do
-    //      match
-    //      (!p->success && !(fstate->nextIndex - 1) && entry)
-    if ((p->success && (fstate->nextIndex <= _LOG.lastIndex()) && entry) ||
-        (!p->success && !(fstate->nextIndex - 1) && entry)) {
-        aeReq.dataSize = entry->size;
-        aeReq.data     = (uint8_t *)entry->data;
-        aeReq.dataTerm = entry->term;
-        free(entry);
-    }
+    createAERequestMessage(fstate, p->success);
 
     fstate->lastTimeout = millis();
     return &aeReq;
@@ -414,30 +362,42 @@ void ServerState::checkHeartbeatTimeouts() {
             Serial.printf("Sending AE Req, nextIndex: %lu\n",
                           followerStates[i].nextIndex);
 
-            aeReq.term         = currentTerm;
-            aeReq.leaderId     = chipId;
-            aeReq.dataSize     = 0;
-            aeReq.dataTerm     = 0;
-            aeReq.leaderCommit = commitIndex;
-            aeReq.data         = NULL;
-            aeReq.prevLogIndex = followerStates[i].nextIndex - 1;
-            aeReq.prevLogTerm  = _LOG.getTerm(aeReq.prevLogIndex);
+            createAERequestMessage(&followerStates[i], true);
 
-            // if there is anything to append, than do so
-            if (followerStates[i].nextIndex <= _LOG.lastIndex()) {
-                logEntry_t *entry =
-                    _LOG.getEntry(followerStates[i].nextIndex);
-                aeReq.data     = (uint8_t *)entry->data;
-                aeReq.dataSize = entry->size;
-                aeReq.dataTerm = entry->term;
-                Serial.printf("Passing dataTerm:%lu\n", entry->term);
-                free(entry);
-            }
             UDPServer::getInstance().sendPacket(aeReq.marshall(),
                                                 aeReq.size(),
                                                 followerStates[i].IP);
             followerStates[i].lastTimeout = millis();
         }
+    }
+}
+
+void ServerState::createAERequestMessage(followerState_t *fstate,
+                                         bool             success) {
+    aeReq.term         = currentTerm;
+    aeReq.leaderId     = chipId;
+    aeReq.leaderCommit = commitIndex;
+    aeReq.dataSize     = 0;
+    aeReq.dataTerm     = 0;
+    aeReq.data         = NULL;
+    uint16_t prevIndex = fstate->nextIndex - 1;
+    aeReq.prevLogIndex = prevIndex;
+    aeReq.prevLogTerm  = _LOG.getTerm(prevIndex);
+
+    logEntry_t *entry = _LOG.getEntry(fstate->nextIndex);
+
+    // Case 1:
+    //      Either we had success and there is still data do be send
+    // Case 2:
+    //      We had no success and the nextIndex would be the first entry in the
+    //      log - for that one we dont have to check if previous entries do
+    //      match. In order to avoid sending this message in the next round, we
+    //      do it right now and save one roundtrip
+    if ((success && entry) || (!success && !prevIndex && entry)) {
+        aeReq.data     = (uint8_t *)entry->data;
+        aeReq.dataSize = entry->size;
+        aeReq.dataTerm = entry->term;
+        free(entry);
     }
 }
 
@@ -455,6 +415,7 @@ int compare(const void *e1, const void *e2) {
     return (f > s) - (f < s);
 }
 
+// TODO: remove console prints
 void ServerState::checkForNewCommitedIndex() {
     if (this->role != LEADER) return;
 
@@ -480,6 +441,9 @@ void ServerState::checkForNewCommitedIndex() {
     uint16_t tempCommit = matchIndexes[NUM_FOLLOWERS - (MAJORITY - 1)];
     Serial.printf("Temp commit is: %d\n", tempCommit);
 
+    // only assign to servers commitIndex if log entry at potential commit index
+    // has the same term as the current leaders term
+    // term
     if ((tempCommit > commitIndex) &&
         (_LOG.getTerm(tempCommit) == this->currentTerm)) {
         this->commitIndex = tempCommit;
