@@ -26,10 +26,10 @@
 
 // using higher values causes memory problems and the boards begin to fail (i.e
 // print stack trace and reset iself)
-#define LOG_SIZE 33000
+#define LOG_SIZE 0x8000
 
 // fixed array - here is space for optimizations
-#define NUM_LOG_ENTRIES 512
+#define NUM_LOG_ENTRIES 0x200
 
 /**
  * Struct representing one dynamic sized log entry.

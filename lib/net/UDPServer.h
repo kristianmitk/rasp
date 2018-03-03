@@ -12,8 +12,8 @@
 
 // TODO: outsource constants
 
-// 512b for entries data + 17 for the other stuff needed in a AppendEntries req
-#define UDP_INCOMING_BUFFER_SIZE 529
+// 512b for entries data + 25 for the other stuff needed in a AppendEntries req
+#define UDP_INCOMING_BUFFER_SIZE (512 + EMPTY_HEARTBEAT_MSG_SIZE)
 
 // default port
 #define RASP_DEFAULT_PORT 1337
