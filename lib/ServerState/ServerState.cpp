@@ -41,7 +41,18 @@ void ServerState::initialize() {
         }
     }
 
-    this->serialPrint();
+    Serial.printf("Server state:\n%-25s%-25s%-25s%-25s\n",
+                  "currentTerm",
+                  "votedFor",
+                  "electionTimeout",
+                  "lastTimeout"
+                  );
+    Serial.printf("%-25lu%-25lu%-25lu%-25lu\n\n",
+                  currentTerm,
+                  votedFor,
+                  electionTimeout,
+                  lastTimeout
+                  );
 }
 
 void ServerState::loopHandler() {
@@ -83,8 +94,8 @@ void ServerState::handleMessage() {
 
     case Message::AppendEntriesRes:
 
-        handleAppendEntriesRes(msg);
-        msg =  NULL;
+        // TODO: return message from `handleAppendEntriesRes`
+        msg = handleAppendEntriesRes(msg);
         break;
 
     default:
@@ -97,43 +108,44 @@ void ServerState::handleMessage() {
     Serial.printf("End at: %lu\n", millis());
 }
 
-// TODO: set persistent values
-Message * ServerState::handleRequestVoteReq(uint32_t term,
-                                            uint32_t candidateID,
-                                            uint16_t lastLogIndex,
-                                            uint32_t lastLogTerm) {
+Message * ServerState::handleRequestVoteReq(Message *msg) {
+    RequestVoteRequest *p = (RequestVoteRequest *)msg;
+
+    p->serialPrint();
+
     rvRes.term        = currentTerm;
     rvRes.voteGranted = false;
 
     // our state is more up to date than the candidate state
-    if (term <= this->currentTerm) {
+    if (p->term <= this->currentTerm) {
         Serial.println("VoteGranted = false");
 
         return &rvRes;
     }
 
-    if (!this->votedFor || (this->currentTerm < term)) {
-        currentTerm = RASPFS::getInstance().writeCurrentTerm(term);
+    if (!this->votedFor || (this->currentTerm < p->term)) {
+        currentTerm = RASPFS::getInstance().writeCurrentTerm(p->term);
         role        = FOLLOWER;
-        rvRes.term  = term;
+        rvRes.term  = p->term;
 
         // SAFETY RULES (§5.2, §5.4)
-        if ((lastLogTerm > _LOG.lastStoredTerm()) ||
-            ((lastLogTerm == _LOG.lastStoredTerm()) &&
-             (lastLogIndex >= _LOG.lastIndex())))
+        if ((p->lastLogTerm > _LOG.lastStoredTerm()) ||
+            ((p->lastLogTerm == _LOG.lastStoredTerm()) &&
+             (p->lastLogIndex >= _LOG.lastIndex())))
         {
             Serial.println("VoteGranted = true");
 
-            votedFor          = RASPFS::getInstance().writeVotedFor(candidateID);
+            votedFor =
+                RASPFS::getInstance().writeVotedFor(p->candidateID);
             rvRes.voteGranted = true;
         } else {
             return &rvRes;
         }
     } else {
         Serial.printf("Self candidate in term: %d? %d\n",
-                      term,
+                      p->term,
                       ((this->role == CANDIDATE) &&
-                       (this->currentTerm == term)));
+                       (this->currentTerm == p->term)));
         Serial.println("VoteGranted = false - 2nd condition");
         return &rvRes;
     }
@@ -141,49 +153,36 @@ Message * ServerState::handleRequestVoteReq(uint32_t term,
     return &rvRes;
 }
 
-Message * ServerState::handleRequestVoteReq(Message *msg) {
-    RequestVoteRequest *p = (RequestVoteRequest *)msg;
+void ServerState::handleRequestVoteRes(Message *msg) {
+    RequestVoteResponse *p = (RequestVoteResponse *)msg;
 
     p->serialPrint();
-    return handleRequestVoteReq(p->term,
-                                p->candidateID,
-                                p->lastLogIndex,
-                                p->lastLogTerm);
-}
-
-void ServerState::handleRequestVoteRes(uint32_t term, uint8_t  voteGranted) {
     Serial.printf("\n\nwithin `handleRequestVoteRes` - ROLE: %d\n", this->role);
 
     if (this->role == CANDIDATE) {
-        if (voteGranted) {
-            if (term == this->currentTerm) {
+        if (p->voteGranted) {
+            if (p->term == this->currentTerm) {
                 this->receivedVotes++;
                 checkGrantedVotes();
                 return;
             } else {
                 Serial.printf("Obsolete message: own term:%lu, received: %lu\n",
                               this->currentTerm,
-                              term);
+                              p->term);
             }
         }
 
-        if (this->currentTerm < term) {
-            currentTerm = RASPFS::getInstance().writeCurrentTerm(term);
+        if (this->currentTerm < p->term) {
+            currentTerm = RASPFS::getInstance().writeCurrentTerm(p->term);
             role        = FOLLOWER;
         }
     }
 }
 
-void ServerState::handleRequestVoteRes(Message *msg) {
-    RequestVoteResponse *p = (RequestVoteResponse *)msg;
-
-    p->serialPrint();
-    return handleRequestVoteRes(p->term, p->voteGranted);
-}
-
 void ServerState::checkElectionTimeout() {
     if (this->role == LEADER) return;
 
+    // empty message from previous usage
     rvReq = RequestVoteRequest();
 
     if (millis() > lastTimeout + electionTimeout) {
@@ -194,7 +193,6 @@ void ServerState::checkElectionTimeout() {
             this->currentTerm);
 
         role = CANDIDATE;
-
 
         // starting a new election always results in first voting for itself
         votedFor      = RASPFS::getInstance().writeVotedFor(chipId);
@@ -316,8 +314,8 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
     return &aeRes;
 }
 
-void ServerState::handleAppendEntriesRes(Message *msg) {
-    if (role != LEADER) return;
+Message * ServerState::handleAppendEntriesRes(Message *msg) {
+    if (role != LEADER) return NULL;
 
     AppendEntriesResponse *p = (AppendEntriesResponse *)msg;
 
@@ -326,79 +324,73 @@ void ServerState::handleAppendEntriesRes(Message *msg) {
     if (p->term > currentTerm) {
         currentTerm = RASPFS::getInstance().writeCurrentTerm(p->term);
         this->role  = FOLLOWER;
-        return;
+        return NULL;
     }
+
     followerState_t *fstate = getFollower(p->serverId);
 
+    // in case of a success matchIndex can only be incremented
+    // but if its just a reply to an empty heartbeat we dont have to check
+    // for new commit index...
+    if (fstate->matchIndex < p->matchIndex) {
+        Serial.printf("new machIndex is higher than: %lu\n", fstate->matchIndex);
+        fstate->matchIndex = p->matchIndex;
+        checkForNewCommitedIndex();
+    }
+
+    // adjust next index to send, givne the matching information from other peer
     fstate->nextIndex = max(fstate->nextIndex, uint16_t(p->matchIndex + 1));
 
-    // TODO: minimize code
+    // decrement the nextIndex if we did not received a success
     if (!p->success) {
         // make sure we never get under 1 - this may happen due to multiple
         // AE arriving
         fstate->nextIndex -= fstate->nextIndex == 1 ? 0 : 1;
-        uint16_t sendIndex = fstate->nextIndex - 1;
 
-        aeReq.term         = currentTerm;
-        aeReq.leaderId     = chipId;
-        aeReq.leaderCommit = commitIndex;
-        aeReq.prevLogIndex = sendIndex;
+        // fstate->nextIndex  = max((fstate->nextIndex - 1), 1);
 
-        // returns 0 if index = 0
-        aeReq.prevLogTerm = _LOG.getTerm(sendIndex);
-        aeReq.dataSize    = 0;
-        aeReq.dataTerm    = 0;
-        aeReq.data        = NULL;
-
-        logEntry_t *entry = NULL;
-
-        if (!sendIndex && (entry = _LOG.getEntry(1))) {
-            aeReq.dataSize = entry->size;
-            aeReq.data     = (uint8_t *)entry->data;
-            aeReq.dataTerm = entry->term;
-            free(entry);
-        }
-        UDPServer::getInstance().sendPacket(aeReq.marshall(), aeReq.size());
         Serial.printf(
-            "Send a decremented AE with nextIndex:%d, matchIndex:%d\n",
+            "Sending a decremented AE with nextIndex:%d, matchIndex:%d\n",
             fstate->nextIndex,
             fstate->matchIndex);
     } else {
-        if (fstate->nextIndex <= _LOG.lastIndex()) {
-            aeReq.term         = currentTerm;
-            aeReq.leaderId     = chipId;
-            aeReq.leaderCommit = commitIndex;
-            aeReq.prevLogIndex = fstate->nextIndex - 1;
-            aeReq.prevLogTerm  = _LOG.getTerm(fstate->nextIndex - 1);
-            aeReq.dataSize     = 0;
-            aeReq.dataTerm     = 0;
-            aeReq.data         = NULL;
-
-            logEntry_t *entry = NULL;
-
-            if (entry = _LOG.getEntry(fstate->nextIndex)) {
-                aeReq.dataSize = entry->size;
-                aeReq.data     = (uint8_t *)entry->data;
-                aeReq.dataTerm = entry->term;
-                free(entry);
-            }
-            UDPServer::getInstance().sendPacket(aeReq.marshall(), aeReq.size());
-            Serial.printf(
-                "Send an AE with nextIndex:%d, matchIndex:%d\n",
-                fstate->nextIndex,
-                fstate->matchIndex
-                );
-        }
-
-        // in case of a success matchIndex can only be incremented
-        // but if its just a reply to an empty heartbeat we dont have to check
-        // for new commit index...
-        if (fstate->matchIndex < p->matchIndex) {
-            fstate->matchIndex = p->matchIndex;
-            checkForNewCommitedIndex();
-        }
+        // we have nothing to send if we received a success and nextIndex is
+        // highter than the last index in the log    (- can be max. highter by
+        // 1)
+        if (fstate->nextIndex > _LOG.lastIndex()) return NULL;
     }
+
+    uint16_t prevIndex = fstate->nextIndex - 1;
+
+    aeReq.term         = currentTerm;
+    aeReq.leaderId     = chipId;
+    aeReq.leaderCommit = commitIndex;
+    aeReq.prevLogIndex = prevIndex;
+    aeReq.prevLogTerm  = _LOG.getTerm(prevIndex);
+    aeReq.dataSize     = 0;
+    aeReq.dataTerm     = 0;
+    aeReq.data         = NULL;
+
+    logEntry_t *entry = _LOG.getEntry(fstate->nextIndex);
+
+    // Case 1:
+    //      Either we had success and there is still data do be send
+    //      (p->success && (fstate->nextIndex <= _LOG.lastIndex()) && entry)
+    // Case 2:
+    //      We had no success and the nextIndex would be the first entry in the
+    //      log - for that one we dont have to check if previous entries do
+    //      match
+    //      (!p->success && !(fstate->nextIndex - 1) && entry)
+    if ((p->success && (fstate->nextIndex <= _LOG.lastIndex()) && entry) ||
+        (!p->success && !(fstate->nextIndex - 1) && entry)) {
+        aeReq.dataSize = entry->size;
+        aeReq.data     = (uint8_t *)entry->data;
+        aeReq.dataTerm = entry->term;
+        free(entry);
+    }
+
     fstate->lastTimeout = millis();
+    return &aeReq;
 }
 
 void ServerState::resetElectionTimeout() {
@@ -409,10 +401,6 @@ void ServerState::resetElectionTimeout() {
     Serial.printf("New timeout: %lu current millis: %lu\n",
                   electionTimeout,
                   lastTimeout);
-}
-
-ServerState::Role ServerState::getRole() {
-    return this->role;
 }
 
 void ServerState::checkHeartbeatTimeouts() {
@@ -470,7 +458,6 @@ int compare(const void *e1, const void *e2) {
 void ServerState::checkForNewCommitedIndex() {
     if (this->role != LEADER) return;
 
-    printEventHeader(currentTerm);
     Serial.println("Checking new Index");
     uint16_t matchIndexes[NUM_FOLLOWERS];
 
@@ -512,19 +499,4 @@ void ServerState::DEBUG_APPEND_LOG() {
             _LOG.append(currentTerm, entryData, entrySize);
         }
     }
-}
-
-void ServerState::serialPrint() {
-    Serial.printf("Server state:\n%-25s%-25s%-25s%-25s\n",
-                  "currentTerm",
-                  "votedFor",
-                  "electionTimeout",
-                  "lastTimeout"
-                  );
-    Serial.printf("%-25lu%-25lu%-25lu%-25lu\n\n",
-                  currentTerm,
-                  votedFor,
-                  electionTimeout,
-                  lastTimeout
-                  );
 }

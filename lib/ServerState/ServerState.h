@@ -57,12 +57,6 @@ public:
      */
     void initialize();
 
-    /**
-     * TODO: DOCS
-     * [serialPrint description]
-     * @return [description]
-     */
-    void serialPrint();
 
     /**
      * TODO: DOCS
@@ -73,11 +67,8 @@ public:
 
     /**
      * TODO: DOCS
-     * [getRole description]
      * @return [description]
      */
-    Role     getRole();
-
     uint32_t getCurrentTerm() {
         return this->currentTerm;
     }
@@ -90,29 +81,14 @@ private:
      * @param  msg [description]
      * @return     [description]
      */
-    void handleMessage();
+    void     handleMessage();
 
     /**
      * TODO: DOCS
      * [checkElectionTimeout description]
      * @return [description]
      */
-    void checkElectionTimeout();
-
-
-    /**
-     * TODO: DOCS
-     * [handleRequestVoteRPC description]
-     * @param  term         [description]
-     * @param  candidateID  [description]
-     * @param  lastLogIndex [description]
-     * @param  lastLogTerm  [description]
-     * @return              [description]
-     */
-    Message* handleRequestVoteReq(uint32_t term,
-                                  uint32_t scandidateID,
-                                  uint16_t lastLogIndex,
-                                  uint32_t lastLogTerm);
+    void     checkElectionTimeout();
 
     /**
      * TODO: DOCS
@@ -155,7 +131,7 @@ private:
      * @param  msg [description]
      * @return     [description]
      */
-    void     handleAppendEntriesRes(Message *msg);
+    Message* handleAppendEntriesRes(Message *msg);
 
 
     /**
