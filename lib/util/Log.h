@@ -26,7 +26,7 @@
 
 // using higher values causes memory problems and the boards begin to fail (i.e
 // print stack trace and reset iself)
-#define LOG_SIZE 0x8000
+#define LOG_SIZE 0x4000
 
 // fixed array - here is space for optimizations
 #define NUM_LOG_ENTRIES 0x200
@@ -74,10 +74,11 @@ public:
      * @param term          term when the log was appended by the leader
      * @param data          pointer to the data to be appended
      * @param size          size of data to be appended
+     * @return {uint16_t}   index position of appended entry
      */
-    void append(uint32_t term,
-                uint8_t *data,
-                uint16_t size);
+    uint16_t append(uint32_t term,
+                    uint8_t *data,
+                    uint16_t size);
 
 
     /**
@@ -161,6 +162,7 @@ public:
 
 private:
 
+    // due to singleton pattern the constructor is private
     Log() {}
 
     Log(Log const&);

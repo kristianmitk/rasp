@@ -73,15 +73,23 @@ public:
         return this->currentTerm;
     }
 
+    /**
+     * TODO: DOCS
+     * @param  data [description]
+     * @return      [description]
+     */
+    uint16_t append(uint8_t *data,
+                    uint16_t size);
+
 private:
 
     /**
      * TODO: DOCS
-     * [dispatch description]
      * @param  msg [description]
      * @return     [description]
      */
-    void     handleMessage();
+    void handleMessage();
+
 
     /**
      * TODO: DOCS
@@ -101,20 +109,10 @@ private:
     /**
      * TODO: DOCS
      * [handleRequestVoteRes description]
-     * @param  term        [description]
-     * @param  voteGranted [description]
-     * @return             [description]
-     */
-    void     handleRequestVoteRes(uint32_t term,
-                                  uint8_t  voteGranted);
-
-    /**
-     * TODO: DOCS
-     * [handleRequestVoteRes description]
      * @param  msg [description]
      * @return     [description]
      */
-    void handleRequestVoteRes(Message *msg);
+    Message* handleRequestVoteRes(Message *msg);
 
 
     /**
@@ -135,19 +133,42 @@ private:
 
 
     /**
+     * * TODO: DOCS
+     * [handleSMreadReq description]
+     * @param  msg [description]
+     * @return     [description]
+     */
+    Message* handleSMreadReq(Message *msg);
+
+    /**
+     * * TODO: DOCS
+     * [handleSMreadReq description]
+     * @param  msg [description]
+     * @return     [description]
+     */
+    Message* handleSMwriteReq(Message *msg);
+
+    /**
+     * TODO: DOCS
+     * [handleSmqriteReq description]
+     * @param  msg [description]
+     * @return     [description]
+     */
+    void     checkForNewSMcommands();
+
+    /**
      * TODO: DOCS
      * [resetElectionTimeout description]
      */
-    void             resetElectionTimeout();
+    void     resetElectionTimeout();
 
     /**
      * TODO: DOCS
      * [checkHeartbeatTimeout description]
      * @return [description]
      */
-    void             checkHeartbeatTimeouts();
+    void     checkHeartbeatTimeouts();
 
-    void             DEBUG_APPEND_LOG();
 
     /**
      * TODO: DOCS
@@ -176,6 +197,11 @@ private:
     void             createAERequestMessage(followerState_t *fstate,
                                             bool             success);
 
+    /**
+     * TODO: DOCS
+     */
+    Message* clientRedirectMessage();
+
     // to redirect clients when they request a leader
     uint32_t leaderId;
 
@@ -201,6 +227,7 @@ private:
     uint32_t lastApplied;
 
     // -------- volatile state as leader
+    // for simplicity we use an array
     followerState_t followerStates[NUM_FOLLOWERS];
 
     uint16_t electionTimeout;

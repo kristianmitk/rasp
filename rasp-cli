@@ -27,28 +27,28 @@ _EOF
 
 while [[ $# -gt 0 ]]
 do
-key="$1"
+    key="$1"
 
-case $key in
-    -s|--screen)
-    SCREEN="1"
-    shift # past argument
-    shift # past value
-    ;;
-    -h|--help)
-    show_help
-    exit 0;
-    shift
-    ;;
-    -n|--no-upload)
-    NOUPLOAD="1"
-    shift
-    ;;
-    *)    # unknown option
-    POSITIONAL+=("$1") # save it in an array for later
-    shift # past argument
-    ;;
-esac
+    case $key in
+        -s|--screen)
+            SCREEN="1"
+            shift # past argument
+            shift # past value
+        ;;
+        -h|--help)
+            show_help
+            exit 0;
+            shift
+        ;;
+        -n|--no-upload)
+            NOUPLOAD="1"
+            shift
+        ;;
+        *)    # unknown option
+            POSITIONAL+=("$1") # save it in an array for later
+            shift # past argument
+        ;;
+    esac
 done
 
 set -- "${POSITIONAL[@]}" # restore positional parameters

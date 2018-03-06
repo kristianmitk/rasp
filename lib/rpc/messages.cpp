@@ -1,6 +1,11 @@
-#include "Arduino.h"
 #include "messages.h"
-#include "marshall.h"
+
+RequestVoteRequest    rvReq = RequestVoteRequest();
+RequestVoteResponse   rvRes = RequestVoteResponse();
+AppendEntriesRequest  aeReq = AppendEntriesRequest();
+AppendEntriesResponse aeRes = AppendEntriesResponse();
+StateMachineMessage   smMsg = StateMachineMessage();
+
 
 // TODO: marshalling should return stack buffer instead of buffer pointer
 
@@ -210,6 +215,49 @@ size_t AppendEntriesResponse::size() {
 }
 
 /**
+ * --------------------         StateMachineRequest         --------------------
+ */
+
+StateMachineMessage::StateMachineMessage() {}
+
+StateMachineMessage::StateMachineMessage(Message::_type msgType) {
+    this->type     = msgType;
+    this->data     = NULL;
+    this->dataSize = 0;
+}
+
+StateMachineMessage::StateMachineMessage(uint8_t *packet, uint16_t size) {
+    this->type     = (Message::_type)unpack_uint8_t(packet, 0);
+    this->data     = packet + 1;
+    this->dataSize = size - 1;
+}
+
+size_t StateMachineMessage::size() {
+    return this->dataSize + 1;
+}
+
+uint8_t * StateMachineMessage::marshall() {
+    // TODO: pack message type as well
+    uint8_t *buffer = new uint8_t[this->dataSize + 1];
+
+    pack_uint8_t(buffer, 0, this->type);
+
+    if (this->dataSize) {
+        memcpy(&buffer[1], this->data, this->dataSize);
+        free(this->data);
+        return buffer;
+    }
+    return NULL;
+}
+
+void StateMachineMessage::serialPrint() {
+    Serial.printf("State Machine Message type: %lu\n Size: %lu, Value: %lu\n",
+                  this->type,
+                  this->dataSize,
+                  this->data[0]);
+}
+
+/**
  * ---------------------------         OTHER         ---------------------------
  */
 Message* a(uint8_t *packet, uint16_t size) {
@@ -232,6 +280,11 @@ Message* d(uint8_t *packet, uint16_t size) {
     return &aeRes;
 }
 
+Message* e(uint8_t *packet, uint16_t size) {
+    smMsg = StateMachineMessage(packet, size);
+    return &smMsg;
+}
+
 /**
  * TODO: DOCS
  * NOTE: keep the order like we have it in Message::MessageType
@@ -239,14 +292,21 @@ Message* d(uint8_t *packet, uint16_t size) {
  * @param  packet [description]
  * @return        [description]
  */
-Message * (*messageGenerators[4])(uint8_t * packet,
-                                  uint16_t size) = { a, b, c, d };
+Message * (*messageGenerators[])(uint8_t * packet,
+                                 uint16_t size) = { a, b, c, d };
 
 Message* createMessage(uint8_t *packet, uint16_t size) {
     uint8_t messageType = unpack_uint8_t(packet, 0);
 
     Serial.printf("MessageType: %d\n", messageType);
 
-    return messageType < Message::lastVal ?
-           messageGenerators[messageType](packet, size) : NULL;
+    if (messageType < Message::lastValForPeers) {
+        return messageGenerators[messageType](packet, size);
+    }
+
+    if ((messageType > Message::firstValForClientReq) &&
+        (messageType < Message::lastValForClientReq)) {
+        return e(packet, size);
+    }
+    return NULL;
 }

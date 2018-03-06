@@ -1,12 +1,12 @@
-ServerState - Class
+ServerState - Singleton Class
 - maintains the current state of the server (role, log, variables - i.e term... - etc.)
     - also handles incoming packets forwarded from the UDPServer.
 
-UDPServer - Class
+UDPServer - Singleton Class
 - handles incoming and outgoing packets
-    - returns a buffer holding corresponding message
+    - returns a buffer/message object holding corresponding message
 
-Log - Class
+Log - Singleton Class
 - maintains the replicated log
 
 RASPFS - Singleton Class, uses the SPIFF FS
@@ -14,7 +14,3 @@ RASPFS - Singleton Class, uses the SPIFF FS
         - `SS/currentTerm`
         - `SS/votedFor`
         - `SS/Log`
-            - Holding all LogEntries (one per line)
-    Files for StateMachine:
-        - `SM/*`
-            - whatever data is maintained

@@ -2,6 +2,7 @@
 #define messages_h
 
 #include <Arduino.h>
+#include "ESP8266WiFi.h"
 #include "marshall.h"
 
 #define PACKET_BODY_OFFSET 1
@@ -21,7 +22,7 @@ public:
      * This enum is used to identify the message type. Every incoming packet
      * specifies on its first byte the message type.
      */
-    enum type: uint8_t {
+    enum _type: uint8_t {
         RequestVoteReq   = 0,
         RequestVoteRes   = 1,
         AppendEntriesReq = 2,
@@ -29,7 +30,16 @@ public:
 
         // to find out when we bounce out of index in
         // `createMessage(uint8_t *packet)`
-        lastVal
+        lastValForPeers = 4,
+
+        firstValForClientReq = 127,
+        StateMachineReadReq  = 128,
+        StateMachineWriteReq = 129,
+        lastValForClientReq  = 130,
+        StateMachineReadRes  = 131,
+        StateMachineWriteRes = 132,
+        lastValForClientRes  = 133,
+        followerRedirect     = 150
     } type;
 
     /**
@@ -151,6 +161,23 @@ public:
 };
 
 
+class StateMachineMessage : public Message {
+public:
+
+    uint16_t dataSize;
+    uint8_t *data;
+
+    StateMachineMessage();
+    StateMachineMessage(Message::_type type);
+    StateMachineMessage(uint8_t *packet,
+                        uint16_t size);
+
+    virtual uint8_t* marshall();
+    virtual void     serialPrint();
+    virtual size_t   size();
+};
+
+
 /**
  * This static objects are used all over the single routine that is running on
  * the ESP8266 boards. Received packets pass its data to the proper message type
@@ -158,10 +185,11 @@ public:
  * callee. Vice versa: packets to send are created out of this objects
  */
 
-static RequestVoteRequest    rvReq;
-static RequestVoteResponse   rvRes;
-static AppendEntriesRequest  aeReq;
-static AppendEntriesResponse aeRes;
+extern RequestVoteRequest    rvReq;
+extern RequestVoteResponse   rvRes;
+extern AppendEntriesRequest  aeReq;
+extern AppendEntriesResponse aeRes;
+extern StateMachineMessage   smMsg;
 
 Message* createMessage(uint8_t *packet,
                        uint16_t size);

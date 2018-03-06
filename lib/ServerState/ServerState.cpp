@@ -4,8 +4,8 @@
 
 // TODO: outsource boundaries to a config file
 // TODO: improve timeouts
-#define MIN_ELECTION_TIMEOUT 300
-#define MAX_ELECTION_TIMEOUT 600
+#define MIN_ELECTION_TIMEOUT 400
+#define MAX_ELECTION_TIMEOUT 800
 #define HEARTBEAT_TIMEOUT 100
 #define generateTimeout() random(MIN_ELECTION_TIMEOUT, MAX_ELECTION_TIMEOUT)
 
@@ -56,15 +56,7 @@ void ServerState::initialize() {
 }
 
 void ServerState::loopHandler() {
-    if (this->commitIndex > this->lastApplied) {
-        printEventHeader(currentTerm);
-        this->lastApplied++;
-        logEntry_t *entry = _LOG.getEntry(this->lastApplied);
-        StateMachine::getInstance().apply(entry->data);
-        free(entry);
-    }
-
-    DEBUG_APPEND_LOG();
+    checkForNewSMcommands();
 
     handleMessage();
 
@@ -84,22 +76,28 @@ void ServerState::handleMessage() {
         break;
 
     case Message::RequestVoteRes:
-        handleRequestVoteRes(msg);
-        msg = NULL;
+        msg = handleRequestVoteRes(msg);
         break;
 
     case Message::AppendEntriesReq:
-        msg =  handleAppendEntriesReq(msg);
+        msg = handleAppendEntriesReq(msg);
         break;
 
     case Message::AppendEntriesRes:
-
-        // TODO: return message from `handleAppendEntriesRes`
         msg = handleAppendEntriesRes(msg);
         break;
 
+    case Message::StateMachineReadReq:
+        msg = handleSMreadReq(msg);
+        break;
+
+    case Message::StateMachineWriteReq:
+        msg = handleSMwriteReq(msg);
+        break;
+
     default:
-        Serial.printf("[ERR] received unknown message type: %d", msg->type);
+        Serial.printf("[ERR] ServerState received unknown message type: %d",
+                      msg->type);
         msg =  NULL;
     }
 
@@ -153,7 +151,7 @@ Message * ServerState::handleRequestVoteReq(Message *msg) {
     return &rvRes;
 }
 
-void ServerState::handleRequestVoteRes(Message *msg) {
+Message * ServerState::handleRequestVoteRes(Message *msg) {
     RequestVoteResponse *p = (RequestVoteResponse *)msg;
 
     p->serialPrint();
@@ -164,7 +162,7 @@ void ServerState::handleRequestVoteRes(Message *msg) {
             if (p->term == this->currentTerm) {
                 this->receivedVotes++;
                 checkGrantedVotes();
-                return;
+                return NULL;
             } else {
                 Serial.printf("Obsolete message: own term:%lu, received: %lu\n",
                               this->currentTerm,
@@ -177,6 +175,7 @@ void ServerState::handleRequestVoteRes(Message *msg) {
             role        = FOLLOWER;
         }
     }
+    return NULL;
 }
 
 void ServerState::checkElectionTimeout() {
@@ -252,11 +251,13 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
         aeRes.term        = currentTerm;
     }
 
+    // TODO: move this down below after appending potential entry?
     if (p->leaderCommit > this->commitIndex) {
         this->commitIndex = min(p->leaderCommit, _LOG.lastIndex());
     }
 
-    role = FOLLOWER;
+    role     = FOLLOWER;
+    leaderId = p->leaderId;
 
     logEntry_t *prevEntry = _LOG.getEntry(p->prevLogIndex);
 
@@ -271,12 +272,14 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
         aeRes.matchIndex = p->prevLogIndex;
 
         if (p->dataSize) {
-            if (_LOG.exist(p->prevLogIndex + 1) &&
-                (_LOG.getTerm(p->prevLogIndex + 1) != p->dataTerm)) {
+            uint16_t nextIndex = p->prevLogIndex + 1;
+
+            if (_LOG.exist(nextIndex) &&
+                (_LOG.getTerm(nextIndex) != p->dataTerm)) {
                 _LOG.truncate(p->prevLogIndex);
             }
 
-            if (!_LOG.getEntry(p->prevLogIndex + 1)) {
+            if (!_LOG.getEntry(nextIndex)) {
                 _LOG.append(p->dataTerm, p->data, p->dataSize);
                 aeRes.matchIndex++;
             }
@@ -334,7 +337,6 @@ Message * ServerState::handleAppendEntriesRes(Message *msg) {
         if (fstate->nextIndex > _LOG.lastIndex()) return NULL;
     }
 
-    uint16_t prevIndex = fstate->nextIndex - 1;
     createAERequestMessage(fstate, p->success);
 
     fstate->lastTimeout = millis();
@@ -374,17 +376,17 @@ void ServerState::checkHeartbeatTimeouts() {
 
 void ServerState::createAERequestMessage(followerState_t *fstate,
                                          bool             success) {
+    uint16_t prevIndex = fstate->nextIndex - 1;
+    logEntry_t *entry  = _LOG.getEntry(fstate->nextIndex);
+
     aeReq.term         = currentTerm;
     aeReq.leaderId     = chipId;
     aeReq.leaderCommit = commitIndex;
     aeReq.dataSize     = 0;
     aeReq.dataTerm     = 0;
     aeReq.data         = NULL;
-    uint16_t prevIndex = fstate->nextIndex - 1;
     aeReq.prevLogIndex = prevIndex;
     aeReq.prevLogTerm  = _LOG.getTerm(prevIndex);
-
-    logEntry_t *entry = _LOG.getEntry(fstate->nextIndex);
 
     // Case 1:
     //      Either we had success and there is still data do be send
@@ -397,8 +399,9 @@ void ServerState::createAERequestMessage(followerState_t *fstate,
         aeReq.data     = (uint8_t *)entry->data;
         aeReq.dataSize = entry->size;
         aeReq.dataTerm = entry->term;
-        free(entry);
     }
+
+    if (entry) free(entry);
 }
 
 /**
@@ -450,17 +453,80 @@ void ServerState::checkForNewCommitedIndex() {
     }
 }
 
-void ServerState::DEBUG_APPEND_LOG() {
+uint16_t ServerState::append(uint8_t *data, uint16_t size) {
     if (this->role == LEADER) {
-        uint32_t rnd = random(1, 1000000);
+        return _LOG.append(currentTerm, data, size);
+    }
+    return 0;
+}
 
-        if (rnd > 999990) {
-            printEventHeader(currentTerm);
-            uint16_t entrySize = random(1, 50);
-            uint8_t  entryData[entrySize];
-            entryData[0] = random(0, 2);
+Message * ServerState::handleSMreadReq(Message *msg) {
+    // TODO: more sophisticated would be to return data after majority of
+    // followers responded to heartbeat message, to make sure leader is not
+    // obsolete
+    StateMachineMessage *p = (StateMachineMessage *)msg;
 
-            _LOG.append(currentTerm, entryData, entrySize);
+    p->serialPrint();
+
+    if (this->role != LEADER) return clientRedirectMessage();
+
+    smData_t *smRes =  StateMachine::getInstance().read(p->data,
+                                                        p->dataSize);
+    smMsg.type     = Message::StateMachineReadRes;
+    smMsg.data     = smRes->data;
+    smMsg.dataSize = smRes->size;
+    return &smMsg;
+}
+
+Message * ServerState::handleSMwriteReq(Message *msg) {
+    StateMachineMessage *p = (StateMachineMessage *)msg;
+
+    p->serialPrint();
+
+    if (this->role != LEADER) return clientRedirectMessage();
+
+    UDPServer::getInstance().createClientRequest(this->append(p->data,
+                                                              p->dataSize));
+    return NULL;
+}
+
+Message * ServerState::clientRedirectMessage() {
+    smMsg.type = Message::followerRedirect;
+
+    uint8_t *buf = new uint8_t[4];
+
+    memcpy(buf, getFollower(leaderId)->IP, 4);
+
+    smMsg.data     = buf;
+    smMsg.dataSize = 4;
+    return &smMsg;
+}
+
+void ServerState::checkForNewSMcommands() {
+    if (this->commitIndex > this->lastApplied) {
+        printEventHeader(currentTerm);
+        this->lastApplied++;
+        logEntry_t *entry = _LOG.getEntry(this->lastApplied);
+
+        if ((this->role == LEADER) && (entry->term == this->currentTerm)) {
+            smData_t *smRes = StateMachine::getInstance().apply(entry->data,
+                                                                entry->size);
+            std::vector<clientRequest_t>::iterator it =
+                std::find_if(
+                    UDPServer::getInstance().requests.begin(),
+                    UDPServer::getInstance().requests.end(),
+                    findClient(this->lastApplied));
+            smMsg.type     = Message::StateMachineWriteRes;
+            smMsg.data     = smRes->data;
+            smMsg.dataSize = smRes->size;
+            UDPServer::getInstance().sendPacket(smMsg.marshall(),
+                                                smMsg.size(),
+                                                it->ip,
+                                                it->port);
+            UDPServer::getInstance().requests.erase(it);
+        } else {
+            StateMachine::getInstance().apply(entry->data, entry->size);
         }
+        free(entry);
     }
 }

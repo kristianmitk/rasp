@@ -65,14 +65,14 @@ void Log::initialize() {
                   offset);
 }
 
-void Log::append(uint32_t term, uint8_t *data, uint16_t size) {
+uint16_t Log::append(uint32_t term, uint8_t *data, uint16_t size) {
     // only append if we did not reach the entires limit
     if (nextEntry == NUM_LOG_ENTRIES) {
         Serial.printf(
             "[ERR] Log entries length limit of %d reached, cannot append: %lub\n",
             NUM_LOG_ENTRIES,
             size);
-        return;
+        return 0;
     }
 
     uint16_t offset = this->size();
@@ -84,7 +84,7 @@ void Log::append(uint32_t term, uint8_t *data, uint16_t size) {
             New data size: %lub (+ 6 for term/size), used log size: %lub\n",
             size,
             offset);
-        return;
+        return 0;
     }
 
     uint8_t *p = &this->data[offset];
@@ -103,6 +103,7 @@ void Log::append(uint32_t term, uint8_t *data, uint16_t size) {
 
     RASPFS::getInstance().appendLogEntry(p, size + DATA_OFFSET);
     printLastEntry();
+    return this->nextEntry;
 }
 
 void Log::truncate(uint16_t index) {

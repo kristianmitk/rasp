@@ -18,6 +18,24 @@
 // default port
 #define RASP_DEFAULT_PORT 1337
 
+typedef struct clientRequest {
+    IPAddress ip;
+    uint16_t  port;
+    uint16_t  logIndex;
+    uint32_t  id;
+} clientRequest_t;
+
+struct findClient {
+    uint16_t logIndex;
+    findClient(uint16_t logIndex) : logIndex(logIndex) {}
+
+    bool operator()(const clientRequest& cr) const
+    {
+        return cr.logIndex == logIndex;
+    }
+};
+
+
 /**
  * Singleton class that handles in/out messaging between peers
  * TODO: DOCS
@@ -38,7 +56,7 @@ public:
      * TODO: DOCS
      * [start description]
      */
-    void     start();
+    void start();
 
     /**
      * TODO: DOCS
@@ -46,19 +64,8 @@ public:
      * @param  message [description]
      * @return         [description]
      */
-    void     broadcastRequestVoteRPC(uint8_t *message);
+    void broadcastRequestVoteRPC(uint8_t *message);
 
-    /**
-     * TODO: DOCS
-     * [broadcastHeartbeat description]
-     */
-    void     broadcastHeartbeat(uint8_t *message);
-
-    /**
-     * TODO: DOCS
-     * [checkForPacket description]
-     */
-    uint8_t* checkForPacket();
 
     /**
      * TODO: DOCS
@@ -94,6 +101,19 @@ public:
                     size_t   size,
                     uint8_t  IP[4]);
 
+    void sendPacket(uint8_t  *buffer,
+                    size_t    size,
+                    IPAddress ip,
+                    uint16_t  port);
+
+    /**
+     * TODO: DOCS
+     * @param logIndex [description]
+     */
+    void createClientRequest(uint16_t logIndex);
+
+    std::vector<clientRequest_t>requests;
+
 private:
 
     WiFiUDP Udp;
@@ -106,8 +126,8 @@ private:
      */
     void clearBuffer();
 
-    IPAddress sender;
-
+    IPAddress senderIP;
+    uint16_t senderPort;
     UDPServer(UDPServer const&);
     void operator=(UDPServer const&);
 
