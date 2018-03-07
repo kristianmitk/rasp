@@ -3,9 +3,7 @@
 
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
-
-#define SSID "PiFun1337"
-#define SSID_PW "RaSpFun1337!!"
+#include "config.h"
 
 /**
  * Establishes a wifi connection to the in the function specified SSID.

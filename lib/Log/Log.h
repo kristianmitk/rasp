@@ -3,7 +3,7 @@
 
 #include <Arduino.h>
 #include "rasp_fs.h"
-
+#include "config.h"
 
 /**
  * NOTE: Log entries are indexed from outside of this file begining from 1 but
@@ -22,14 +22,6 @@
  *
  * -> Log entries may have dynamic sizes.
  */
-
-
-// using higher values causes memory problems and the boards begin to fail (i.e
-// print stack trace and reset iself)
-#define LOG_SIZE 0x4000
-
-// fixed array - here is space for optimizations
-#define NUM_LOG_ENTRIES 0x200
 
 /**
  * Struct representing one dynamic sized log entry.

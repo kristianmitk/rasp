@@ -1,12 +1,8 @@
 #include "ServerState.h"
 #include "StateMachine.h"
 #include "Log.h"
+#include "config.h"
 
-// TODO: outsource boundaries to a config file
-// TODO: improve timeouts
-#define MIN_ELECTION_TIMEOUT 500
-#define MAX_ELECTION_TIMEOUT 800
-#define HEARTBEAT_TIMEOUT 200
 #define generateTimeout() random(MIN_ELECTION_TIMEOUT, MAX_ELECTION_TIMEOUT)
 
 #define MAJORITY (RASP_NUM_SERVERS / 2 + 1)

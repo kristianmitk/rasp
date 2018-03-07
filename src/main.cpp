@@ -1,6 +1,6 @@
 #include <Arduino.h>
 
-#include "env.h"
+#include "config.h"
 #include "common.h"
 #include "rasp_wifi.h"
 #include "messages.h"
@@ -9,8 +9,6 @@
 #include "ServerState.h"
 #include "SerialInHandler.h"
 #include "StateMachine.h"
-
-#define DEFAULT_BAUD_RATE 115200
 
 SerialInHandler serialInHandler;
 
