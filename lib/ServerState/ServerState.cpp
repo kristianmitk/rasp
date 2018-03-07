@@ -4,9 +4,9 @@
 
 // TODO: outsource boundaries to a config file
 // TODO: improve timeouts
-#define MIN_ELECTION_TIMEOUT 400
+#define MIN_ELECTION_TIMEOUT 500
 #define MAX_ELECTION_TIMEOUT 800
-#define HEARTBEAT_TIMEOUT 100
+#define HEARTBEAT_TIMEOUT 200
 #define generateTimeout() random(MIN_ELECTION_TIMEOUT, MAX_ELECTION_TIMEOUT)
 
 #define MAJORITY (RASP_NUM_SERVERS / 2 + 1)
@@ -56,13 +56,13 @@ void ServerState::initialize() {
 }
 
 void ServerState::loopHandler() {
-    checkForNewSMcommands();
-
     handleMessage();
 
     checkHeartbeatTimeouts();
 
     checkElectionTimeout();
+
+    checkForNewSMcommands();
 }
 
 void ServerState::handleMessage() {
@@ -251,11 +251,6 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
         aeRes.term        = currentTerm;
     }
 
-    // TODO: move this down below after appending potential entry?
-    if (p->leaderCommit > this->commitIndex) {
-        this->commitIndex = min(p->leaderCommit, _LOG.lastIndex());
-    }
-
     role     = FOLLOWER;
     leaderId = p->leaderId;
 
@@ -270,16 +265,33 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
         (!prevEntry && !p->prevLogIndex && !p->prevLogTerm)) {
         aeRes.success    = 1;
         aeRes.matchIndex = p->prevLogIndex;
+        Serial.printf("SHOULD APPEND\n");
 
         if (p->dataSize) {
+            Serial.printf("DATA SIZE EXIST!\n");
             uint16_t nextIndex = p->prevLogIndex + 1;
 
-            if (_LOG.exist(nextIndex) &&
-                (_LOG.getTerm(nextIndex) != p->dataTerm)) {
-                _LOG.truncate(p->prevLogIndex);
+            if (_LOG.exist(nextIndex)) {
+                if (_LOG.getTerm(nextIndex) != p->dataTerm) {
+                    Serial.printf("TRUNCATING!\n");
+                    _LOG.truncate(p->prevLogIndex);
+                } else {
+                    // we need to check on this as we would send a wrong
+                    // matchIndex value back and withing the next condition
+                    // never append a new entry as its already existing, so the
+                    // condition would never be satisfied
+                    //
+                    // also its safe to do that due to the leader-append-only
+                    // safety roule - if index and term do match then the entry
+                    // is the same
+                    Serial.printf("ALREADY EXISTING\n");
+                    aeRes.matchIndex++;
+                }
             }
 
-            if (!_LOG.getEntry(nextIndex)) {
+            // we might removed the entry in previous if block
+            if (!_LOG.exist(nextIndex)) {
+                Serial.printf("APPENDING!\n");
                 _LOG.append(p->dataTerm, p->data, p->dataSize);
                 aeRes.matchIndex++;
             }
@@ -287,6 +299,11 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
     }
 
     free(prevEntry);
+
+    if (p->leaderCommit > this->commitIndex) {
+        this->commitIndex = min(p->leaderCommit, _LOG.lastIndex());
+    }
+
     resetElectionTimeout();
     return &aeRes;
 }
@@ -310,9 +327,9 @@ Message * ServerState::handleAppendEntriesRes(Message *msg) {
     // but if its just a reply to an empty heartbeat we dont have to check
     // for new commit index...
     if (fstate->matchIndex < p->matchIndex) {
-        Serial.printf("new machIndex is higher than: %lu\n", fstate->matchIndex);
         fstate->matchIndex = p->matchIndex;
-        checkForNewCommitedIndex();
+
+        if (fstate->matchIndex > commitIndex) checkForNewCommitedIndex();
     }
 
     // adjust next index to send, givne the matching information from other peer
@@ -338,6 +355,8 @@ Message * ServerState::handleAppendEntriesRes(Message *msg) {
     }
 
     createAERequestMessage(fstate, p->success);
+
+    aeReq.serialPrint();
 
     fstate->lastTimeout = millis();
     return &aeReq;
@@ -422,23 +441,13 @@ int compare(const void *e1, const void *e2) {
 void ServerState::checkForNewCommitedIndex() {
     if (this->role != LEADER) return;
 
-    Serial.println("Checking new Index");
     uint16_t matchIndexes[NUM_FOLLOWERS];
 
     for (int i = 0; i < NUM_FOLLOWERS; i++) {
         matchIndexes[i] = followerStates[i].matchIndex;
-        Serial.printf("%d: %lu\n", i, matchIndexes[i]);
     }
 
-    Serial.println("Bout to start sorting");
     qsort(matchIndexes, NUM_FOLLOWERS, sizeof(matchIndexes[0]), compare);
-    Serial.println("After sort:");
-
-    for (int i = 0; i < NUM_FOLLOWERS; i++) {
-        Serial.printf("%d: %lu\n", i, matchIndexes[i]);
-    }
-    Serial.printf("Returning number at index: %d\n",
-                  NUM_FOLLOWERS - (MAJORITY - 1));
 
     // get the highes index that is replicated on the majority
     uint16_t tempCommit = matchIndexes[NUM_FOLLOWERS - (MAJORITY - 1)];
@@ -523,7 +532,12 @@ void ServerState::checkForNewSMcommands() {
                                                 smMsg.size(),
                                                 it->ip,
                                                 it->port);
-            UDPServer::getInstance().requests.erase(it);
+            Serial.printf("size before erase: %d\n",
+                          UDPServer::getInstance().requests.size());
+            UDPServer::              getInstance().requests.erase(it);
+
+            Serial.printf("size after erase: %d\n",
+                          UDPServer::getInstance().requests.size());
         } else {
             StateMachine::getInstance().apply(entry->data, entry->size);
         }

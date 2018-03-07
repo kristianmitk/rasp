@@ -47,7 +47,7 @@ void Log::initialize() {
 
     // we iterate through all entries and initialies proper log values (i.e
     // lastTerm, nextEntry, entryAdress[])
-    while (offset < currentLogSize) {
+    while (offset < currentLogSize) { // TODO: disable soft WDT
         Serial.printf("Latest term: %lu\nnextEntry: %lu\noffset: %lu\n",
                       latestTerm,
                       nextEntry,

@@ -47,7 +47,7 @@ void UDPServer::sendPacket(uint8_t  *buffer,
                            uint16_t  port) {
     Serial.printf("Sending single message of size: %d to: ",
                   size);
-    Serial.println(ip);
+    Serial.print(ip);
     Serial.printf(":%d\n", port);
     Udp.beginPacket(ip, port);
     Udp.write((char *)buffer, size);

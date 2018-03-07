@@ -31,12 +31,14 @@ void setup() {
     // lazy construction and state initialization
     ServerState::getInstance().initialize();
 
-    // lazy construction and and open server for peers
-    UDPServer::getInstance().start();
-
     printCurrentMillis();
 
     StateMachine::getInstance();
+
+    // lazy construction and and open server for peers
+    // NOTE: keep this always as last command in this setup() function
+    // to avoid having old functions in the message buffer
+    UDPServer::getInstance().start();
 }
 
 /* -------------------------- LOOP -------------------------- */
