@@ -35,9 +35,9 @@ void setup() {
 
     StateMachine::getInstance();
 
-    // lazy construction and and open server for peers
+    // lazy construction and and open server
     // NOTE: keep this always as last command in this setup() function
-    // to avoid having old functions in the message buffer
+    // to avoid having old messages in the incoming buffer
     UDPServer::getInstance().start();
 }
 
