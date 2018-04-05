@@ -11,6 +11,28 @@
 // not used by now - evetually will minimize debug messages on serial output
 #define RASP_DEBUG
 
+// USE PRINT_DEBUG INSTEAD
+#define PRINT_DEBUG 1
+
+/* ++++++++++++++++++++++++ PRINT_DEBUG CONDITIONAL +++++++++++++++++++++++++ */
+
+// instead of using `printf("lorem ipsum %d", intVal)`
+// rather use `DEBUG("lorem ipsum %d", intVal)` which will substitude
+// depending on if PRINT_DEBUG is set or not, i.e:
+// IF PRINT_DEBUG == 1
+// DEBUG("lorem ipsum %d", intVal) evals to printf("lorem ipsum %d", intVal)
+// ELSE
+// DEBUG("lorem ipsum %d", intVal) evals to nothing - void
+
+#define CONCATENATE(a, b) a ## _ ## b
+
+#define IF(c, t, e) CONCATENATE(IF, c)(t, e)
+#define IF_0(t, e) e
+#define IF_1(t, e) t
+
+#define DEBUG(...) IF(PRINT_DEBUG, printf(__VA_ARGS__); , )
+
+
 /* +++++++++++++++++++++++++++++ CONSTANTS ++++++++++++++++++++++++++++++++++ */
 
 // SERIAL BAUD RATE
