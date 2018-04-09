@@ -138,8 +138,6 @@ logEntry_t * Log::getEntry(uint16_t index) {
 
     uint8_t *p = getPointer(index);
 
-    if (!p) return NULL;
-
     entry->term = getTermNumber(p);
     entry->size = getDataSize(p);
     entry->data = p + DATA_OFFSET;
@@ -170,9 +168,5 @@ void Log::printLastEntry() {
 }
 
 uint8_t * Log::getPointer(uint16_t index) {
-    if (!validIndex(index)) {
-        // Serial.println("[ERR] Index x has to be in {1,...,NUM_LOG_ENTRIES}");
-        return NULL;
-    }
-    return &this->data[this->entryAdress[index - 1]];
+    return !validIndex(index) ? NULL : &this->data[this->entryAdress[index - 1]];
 }

@@ -30,7 +30,7 @@
 #define IF_0(t, e) e
 #define IF_1(t, e) t
 
-#define DEBUG(...) IF(PRINT_DEBUG, printf(__VA_ARGS__); , )
+#define RASPDBG(...) IF(PRINT_DEBUG, printf(__VA_ARGS__); , )
 
 
 /* +++++++++++++++++++++++++++++ CONSTANTS ++++++++++++++++++++++++++++++++++ */

@@ -68,13 +68,6 @@ public:
 
     /**
      * TODO: DOCS
-     * [parse description]
-     * @return [description]
-     */
-    size_t   parse();
-
-    /**
-     * TODO: DOCS
      * [sendPacket description]
      * @param buffer [description]
      * @param size   [description]
@@ -116,7 +109,14 @@ private:
      * TODO: DOCS
      * [clearBuffer description]
      */
-    void clearBuffer();
+    void   clearBuffer();
+
+    /**
+     * TODO: DOCS
+     * [parse description]
+     * @return [description]
+     */
+    size_t parse();
 
     IPAddress senderIP;
     uint16_t senderPort;

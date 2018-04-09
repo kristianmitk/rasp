@@ -17,9 +17,4 @@ extern uint32_t eventNumber;
  */
 void printEventHeader(uint32_t term);
 
-/**
- * Prints the current millis on the serial output
- */
-void printCurrentMillis();
-
 #endif // ifndef common_h

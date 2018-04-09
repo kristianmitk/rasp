@@ -175,9 +175,8 @@ private:
      */
     uint8_t* getPointer(uint16_t index);
 
-
+    // index where to store the next entry.
     uint16_t nextEntry;
-
 
     uint32_t latestTerm;
 

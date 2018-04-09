@@ -1,5 +1,5 @@
 #include "common.h"
-
+#include "config.h"
 uint32_t eventNumber = 0;
 
 void printEventHeader(uint32_t term) {
@@ -9,8 +9,4 @@ void printEventHeader(uint32_t term) {
         term,
         millis()
         );
-}
-
-void printCurrentMillis() {
-    Serial.printf("current millis: %lu\n", millis());
 }

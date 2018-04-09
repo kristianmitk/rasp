@@ -8,6 +8,7 @@ void UDPServer::start() {
 
 // TODO: use followerState IPs
 void UDPServer::broadcastRequestVoteRPC(uint8_t *message) {
+    // TODO: use broadcast 192.168.1.255 ?
     for (int i = 0; i < RASP_NUM_SERVERS; i++) {
         if (servers[i].ID != chipId) {
             Udp.beginPacket(servers[i].IP, RASP_DEFAULT_PORT);

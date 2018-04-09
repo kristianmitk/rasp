@@ -20,7 +20,7 @@ void connectToWiFi() {
         Serial.print(".");
     }
 
-    Serial.printf("\nConnected to: %s\n", SSID);
+    RASPDBG("\nConnected to: %s\n", SSID)
     Serial.println("Static IP: " + WiFi.localIP().toString());
 }
 
