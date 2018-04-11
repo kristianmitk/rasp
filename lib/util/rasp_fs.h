@@ -80,19 +80,19 @@ public:
      */
     size_t appendLogEntry(uint8_t *data, uint16_t size) {
         if (!SPIFFS.exists(LOG)) {
-            Serial.printf("%s does not exist", LOG);
+            RASPDBG("%s does not exist", LOG)
             openLog();
         }
         size_t written = 0;
 
-        Serial.printf("Before: %lu\n", millis());
+        RASPDBG("Before: %lu\n", millis())
 
         written = _logF.write(data, size);
 
-        Serial.printf("Written: %lu bytes to LOG. New file size: %lu bytes\n",
-                      written,
-                      _logF.size());
-        Serial.printf("After: %lu\n", millis());
+        RASPDBG("Written: %lu bytes to LOG. New file size: %lu bytes\n",
+                written,
+                _logF.size())
+        RASPDBG("After: %lu\n", millis())
 
         return written;
     }
@@ -107,7 +107,7 @@ public:
      * @return {size_t}     number of bytes read from `LOG` file
      */
     size_t readLog(uint8_t *buf) {
-        Serial.printf("File log size: %lu\n", _logF.size());
+        RASPDBG("File log size: %lu\n", _logF.size())
         return _logF.read(buf, _logF.size());
     }
 
@@ -122,13 +122,13 @@ public:
      * @return {size_t}     number of bytes written to `LOG` file
      */
     size_t overwriteLog(uint8_t *buf, uint16_t size) {
-        Serial.printf("Log size before overwriting: %lu\n", _logF.size());
+        RASPDBG("Log size before overwriting: %lu\n", _logF.size())
 
-        File   tmp     = SPIFFS.open(LOG, "w");
+        File   tmp = SPIFFS.open(LOG, "w");
         size_t written = 0;
 
         written = tmp.write(buf, size);
-        Serial.printf("Log size after overwriting: %lu\n", tmp.size());
+        RASPDBG("Log size after overwriting: %lu\n", tmp.size())
         tmp.close();
 
         return written;

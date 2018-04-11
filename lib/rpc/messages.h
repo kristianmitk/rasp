@@ -3,7 +3,10 @@
 
 #include <Arduino.h>
 #include "ESP8266WiFi.h"
+#include "config.h"
 #include "marshall.h"
+
+#define RASPDBG(...) IF(PRINT_DEBUG, Serial.printf(__VA_ARGS__); , )
 
 #define PACKET_BODY_OFFSET 1
 

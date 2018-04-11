@@ -21,7 +21,7 @@ public:
 
     smData_t* apply(const void *data, size_t dataSize) {
         this->state = ((uint8_t *)data)[0];
-        Serial.printf("Applied in SM new state: %d\n", this->state);
+        Serial.printf("Applied to SM new state: %d\n", this->state);
 
         if (this->state) {
             digitalWrite(LED_BUILTIN, HIGH);

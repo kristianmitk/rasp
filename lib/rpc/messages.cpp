@@ -39,18 +39,21 @@ uint8_t * RequestVoteRequest::marshall() {
 }
 
 void RequestVoteRequest::serialPrint() {
+#if PRINT_DEBUG
     Serial.printf("RequestVote request message\n%-25s%-25s%-25s%-25s\n",
                   "term",
                   "candidateID",
                   "lastLogIndex",
                   "lastTogTerm"
                   );
+
     Serial.printf("%-25lu%-25lu%-25lu%-25lu\n",
                   this->term,
                   this->candidateID,
                   this->lastLogIndex,
                   this->lastLogTerm
                   );
+#endif // if PRINT_DEBUG
 }
 
 size_t RequestVoteRequest::size() {
@@ -82,14 +85,17 @@ uint8_t * RequestVoteResponse::marshall() {
 }
 
 void RequestVoteResponse::serialPrint() {
-    Serial.printf("RequestVote response message:\n%-25s%-25s\n",
-                  "term",
-                  "voteGranted"
-                  );
+#if PRINT_DEBUG
+    RASPDBG("RequestVote response message:\n%-25s%-25s\n",
+            "term",
+            "voteGranted"
+            )
+
     Serial.printf("%-25lu%-25d\n",
                   this->term,
                   this->voteGranted
                   );
+#endif // if PRINT_DEBUG
 }
 
 size_t RequestVoteResponse::size() {
@@ -144,14 +150,15 @@ uint8_t * AppendEntriesRequest::marshall() {
 }
 
 void AppendEntriesRequest::serialPrint() {
-    Serial.printf("AppendEntries request message \
-                \n%-20s%-20s%-20s%-20s%-20s\n",
+#if PRINT_DEBUG
+    Serial.printf("AppendEntries request message \n%-20s%-20s%-20s%-20s%-20s\n",
                   "term",
                   "leaderId",
                   "prevLogIndex",
                   "prevLogTerm",
                   "leaderCommit"
                   );
+
     Serial.printf("%-20lu%-20lu%-20lu%-20lu%-20lu\n",
                   this->term,
                   this->leaderId,
@@ -159,7 +166,9 @@ void AppendEntriesRequest::serialPrint() {
                   this->prevLogTerm,
                   this->leaderCommit
                   );
+
     Serial.printf("Data Size is: %lub\n", this->dataSize);
+#endif // if PRINT_DEBUG
 }
 
 size_t AppendEntriesRequest::size() {
@@ -195,6 +204,7 @@ uint8_t * AppendEntriesResponse::marshall() {
 }
 
 void AppendEntriesResponse::serialPrint() {
+#if PRINT_DEBUG
     Serial.printf("AppendEntries response message \
                 \n%-25s%-25s%-25s%-25s\n",
                   "term",
@@ -202,12 +212,14 @@ void AppendEntriesResponse::serialPrint() {
                   "matchIndex",
                   "senderId"
                   );
+
     Serial.printf("%-25lu%-25lu%-25lu%-25lu\n",
                   this->term,
                   this->success,
                   this->matchIndex,
                   this->serverId
                   );
+#endif // if PRINT_DEBUG
 }
 
 size_t AppendEntriesResponse::size() {
@@ -251,10 +263,12 @@ uint8_t * StateMachineMessage::marshall() {
 }
 
 void StateMachineMessage::serialPrint() {
+#if PRINT_DEBUG
     Serial.printf("State Machine Message type: %lu\n Size: %lu, Value: %lu\n",
                   this->type,
                   this->dataSize,
                   this->data[0]);
+#endif // if PRINT_DEBUG
 }
 
 /**
@@ -298,7 +312,9 @@ Message * (*messageGenerators[])(uint8_t * packet,
 Message* createMessage(uint8_t *packet, uint16_t size) {
     uint8_t messageType = unpack_uint8_t(packet, 0);
 
+#if PRINT_DEBUG
     Serial.printf("MessageType: %d\n", messageType);
+#endif // if PRINT_DEBUG
 
     if (messageType < Message::lastValForPeers) {
         return messageGenerators[messageType](packet, size);

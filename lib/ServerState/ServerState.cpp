@@ -41,13 +41,13 @@ void ServerState::initialize() {
                   "currentTerm",
                   "votedFor",
                   "electionTimeout",
-                  "lastTimeout"
+                  "lastLogIndex"
                   );
     Serial.printf("%-25lu%-25lu%-25lu%-25lu\n\n",
                   currentTerm,
                   votedFor,
                   electionTimeout,
-                  lastTimeout
+                  _LOG.lastIndex()
                   );
 }
 
@@ -92,14 +92,13 @@ void ServerState::handleMessage() {
         break;
 
     default:
-        Serial.printf("[ERR] ServerState received unknown message type: %d",
-                      msg->type);
+        RASPDBG("[ERR] ServerState received unknown message type: %d", msg->type)
         msg =  NULL;
     }
 
     if (msg) UDPServer::getInstance().sendPacket(msg->marshall(), msg->size());
 
-    Serial.printf("End at: %lu\n", millis());
+    RASPDBG("End at: %lu\n", millis())
 }
 
 Message * ServerState::handleRequestVoteReq(Message *msg) {
@@ -112,8 +111,7 @@ Message * ServerState::handleRequestVoteReq(Message *msg) {
 
     // our state is more up to date than the candidate state
     if (p->term <= this->currentTerm) {
-        Serial.println("VoteGranted = false");
-
+        RASPDBG("VoteGranted = false")
         return &rvRes;
     }
 
@@ -125,9 +123,8 @@ Message * ServerState::handleRequestVoteReq(Message *msg) {
         // SAFETY RULES (§5.2, §5.4)
         if ((p->lastLogTerm > _LOG.lastStoredTerm()) ||
             ((p->lastLogTerm == _LOG.lastStoredTerm()) &&
-             (p->lastLogIndex >= _LOG.lastIndex())))
-        {
-            Serial.println("VoteGranted = true");
+             (p->lastLogIndex >= _LOG.lastIndex()))) {
+            RASPDBG("VoteGranted = true")
 
             votedFor =
                 RASPFS::getInstance().writeVotedFor(p->candidateID);
@@ -136,11 +133,11 @@ Message * ServerState::handleRequestVoteReq(Message *msg) {
             return &rvRes;
         }
     } else {
-        Serial.printf("Self candidate in term: %d? %d\n",
-                      p->term,
-                      ((this->role == CANDIDATE) &&
-                       (this->currentTerm == p->term)));
-        Serial.println("VoteGranted = false - 2nd condition");
+        RASPDBG("Self candidate in term: %d? %d\n",
+                p->term,
+                ((this->role == CANDIDATE) &&
+                 (this->currentTerm == p->term)))
+        RASPDBG("VoteGranted = false - 2nd condition")
         return &rvRes;
     }
     resetElectionTimeout();
@@ -151,7 +148,7 @@ Message * ServerState::handleRequestVoteRes(Message *msg) {
     RequestVoteResponse *p = (RequestVoteResponse *)msg;
 
     p->serialPrint();
-    Serial.printf("\n\nwithin `handleRequestVoteRes` - ROLE: %d\n", this->role);
+    RASPDBG("\n\nwithin `handleRequestVoteRes` - ROLE: %d\n", this->role)
 
     if (this->role == CANDIDATE) {
         if (p->voteGranted) {
@@ -160,9 +157,9 @@ Message * ServerState::handleRequestVoteRes(Message *msg) {
                 checkGrantedVotes();
                 return NULL;
             } else {
-                Serial.printf("Obsolete message: own term:%lu, received: %lu\n",
-                              this->currentTerm,
-                              p->term);
+                RASPDBG("Obsolete message: own term:%lu, received: %lu\n",
+                        this->currentTerm,
+                        p->term)
             }
         }
 
@@ -183,9 +180,8 @@ void ServerState::checkElectionTimeout() {
     if (millis() > lastTimeout + electionTimeout) {
         RASPFS::getInstance().writeCurrentTerm(++this->currentTerm);
         printEventHeader(currentTerm);
-        Serial.printf(
-            "\n[WARN] Election timout. Starting a new election on term: %d\n",
-            this->currentTerm);
+        RASPDBG("\n[WARN] Election timout. Starting a new election on term: %d\n",
+                this->currentTerm)
 
         role = CANDIDATE;
 
@@ -205,10 +201,10 @@ void ServerState::checkElectionTimeout() {
 
 void ServerState::checkGrantedVotes() {
     // TODO: better timeouts
-    Serial.printf("required: %d, received %d\n", MAJORITY, receivedVotes);
+    RASPDBG("required: %d, received %d\n", MAJORITY, receivedVotes)
 
     if (MAJORITY <= receivedVotes) {
-        Serial.printf("ELECTED LEADER!\n", receivedVotes);
+        Serial.printf("ELECTED LEADER!");
 
         for (int i = 0; i < NUM_FOLLOWERS; i++) {
             followerStates[i].matchIndex  = 0;
@@ -218,9 +214,9 @@ void ServerState::checkGrantedVotes() {
 
         role             = LEADER;
         heartbeatTimeout = HEARTBEAT_TIMEOUT;
-        Serial.printf("New heartbeatTimeout: %lu\ncurrent millis: %lu\n",
-                      heartbeatTimeout,
-                      lastTimeout);
+        RASPDBG("New heartbeatTimeout: %lu\ncurrent millis: %lu\n",
+                heartbeatTimeout,
+                lastTimeout)
     }
 }
 
@@ -229,7 +225,7 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
 
     p->serialPrint();
 
-    Serial.printf("Handling AppendEntries RPC request\n");
+    RASPDBG("Handling AppendEntries RPC request\n")
     aeRes.term       = currentTerm;
     aeRes.success    = 0;
     aeRes.matchIndex = 0;
@@ -237,12 +233,12 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
 
     // (§5.1)
     if (currentTerm > p->term) {
-        Serial.printf("Obsolete Message, currentTerm: %lu\n", currentTerm);
+        RASPDBG("Obsolete Message, currentTerm: %lu\n", currentTerm)
         return &aeRes;
     }
 
     if (p->term > currentTerm) {
-        Serial.printf("p->term > currentTerm\n");
+        RASPDBG("p->term > currentTerm\n")
         this->currentTerm = RASPFS::getInstance().writeCurrentTerm(p->term);
         aeRes.term        = currentTerm;
     }
@@ -261,15 +257,15 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
         (!prevEntry && !p->prevLogIndex && !p->prevLogTerm)) {
         aeRes.success    = 1;
         aeRes.matchIndex = p->prevLogIndex;
-        Serial.printf("SHOULD APPEND\n");
+        RASPDBG("SHOULD APPEND\n")
 
         if (p->dataSize) {
-            Serial.printf("DATA SIZE EXIST!\n");
+            RASPDBG("DATA SIZE EXIST!\n")
             uint16_t nextIndex = p->prevLogIndex + 1;
 
             if (_LOG.exist(nextIndex)) {
                 if (_LOG.getTerm(nextIndex) != p->dataTerm) {
-                    Serial.printf("TRUNCATING!\n");
+                    RASPDBG("TRUNCATING!\n")
                     _LOG.truncate(p->prevLogIndex);
                 } else {
                     // we need to check on this as we would send a wrong
@@ -280,14 +276,14 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
                     // also its safe to do that due to the leader-append-only
                     // safety roule - if index and term do match then the entry
                     // is the same
-                    Serial.printf("ALREADY EXISTING\n");
+                    RASPDBG("ALREADY EXISTING\n")
                     aeRes.matchIndex++;
                 }
             }
 
             // we might removed the entry in previous if block
             if (!_LOG.exist(nextIndex)) {
-                Serial.printf("APPENDING!\n");
+                RASPDBG("APPENDING!\n")
                 _LOG.append(p->dataTerm, p->data, p->dataSize);
                 aeRes.matchIndex++;
             }
@@ -339,10 +335,10 @@ Message * ServerState::handleAppendEntriesRes(Message *msg) {
 
         // fstate->nextIndex -= fstate->nextIndex == 1 ? 0 : 1;
 
-        Serial.printf(
+        RASPDBG(
             "Sending a decremented AE with nextIndex:%d, matchIndex:%d\n",
             fstate->nextIndex,
-            fstate->matchIndex);
+            fstate->matchIndex)
     } else {
         // we have nothing to send if we received a success and nextIndex is
         // highter than the last index in the log    (- can be max. highter by
@@ -363,9 +359,9 @@ void ServerState::resetElectionTimeout() {
 
     lastTimeout = millis();
 
-    Serial.printf("New timeout: %lu current millis: %lu\n",
-                  electionTimeout,
-                  lastTimeout);
+    RASPDBG("New timeout: %lu current millis: %lu\n",
+            electionTimeout,
+            lastTimeout)
 }
 
 void ServerState::checkHeartbeatTimeouts() {
@@ -374,10 +370,11 @@ void ServerState::checkHeartbeatTimeouts() {
     for (int i = 0; i < NUM_FOLLOWERS; i++) {
         if (followerStates[i].lastTimeout + heartbeatTimeout < millis()) {
             printEventHeader(currentTerm);
-            Serial.printf("lastTimeout: %lu\n", followerStates[i].lastTimeout);
+            RASPDBG("lastTimeout: %lu\n",
+                    followerStates[i].lastTimeout)
 
-            Serial.printf("Sending AE Req, nextIndex: %lu\n",
-                          followerStates[i].nextIndex);
+            RASPDBG("Sending AE Req, nextIndex: %lu\n",
+                    followerStates[i].nextIndex)
 
             createAERequestMessage(&followerStates[i], true);
 
@@ -447,7 +444,7 @@ void ServerState::checkForNewCommitedIndex() {
 
     // get the highes index that is replicated on the majority
     uint16_t tempCommit = matchIndexes[NUM_FOLLOWERS - (MAJORITY - 1)];
-    Serial.printf("Temp commit is: %d\n", tempCommit);
+    RASPDBG("Temp commit is: %d\n", tempCommit);
 
     // only assign to servers commitIndex if log entry at potential commit index
     // has the same term as the current leaders term
@@ -528,12 +525,12 @@ void ServerState::checkForNewSMcommands() {
                                                 smMsg.size(),
                                                 it->ip,
                                                 it->port);
-            Serial.printf("size before erase: %d\n",
-                          UDPServer::getInstance().requests.size());
-            UDPServer::              getInstance().requests.erase(it);
+            RASPDBG("size before erase: %d\n",
+                    UDPServer::getInstance().requests.size())
+            UDPServer::        getInstance().requests.erase(it);
 
-            Serial.printf("size after erase: %d\n",
-                          UDPServer::getInstance().requests.size());
+            RASPDBG("size after erase: %d\n",
+                    UDPServer::getInstance().requests.size())
         } else {
             StateMachine::getInstance().apply(entry->data, entry->size);
         }

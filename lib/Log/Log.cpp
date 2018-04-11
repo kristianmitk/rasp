@@ -42,16 +42,16 @@ void Log::initialize() {
 
     currentLogSize = RASPFS::getInstance().readLog(this->data);
 
-    Serial.printf("About to rebuild log from file system with size: %lu\n",
-                  currentLogSize);
+    RASPDBG("About to rebuild log from file system with size: %lu\n",
+            currentLogSize)
 
     // we iterate through all entries and initialies proper log values (i.e
     // lastTerm, nextEntry, entryAdress[])
     while (offset < currentLogSize) { // TODO: disable soft WDT
-        Serial.printf("Latest term: %lu\nnextEntry: %lu\noffset: %lu\n",
-                      latestTerm,
-                      nextEntry,
-                      offset);
+        // Serial.printf("Latest term: %lu\nnextEntry: %lu\noffset: %lu\n",
+        //               latestTerm,
+        //               nextEntry,
+        //               offset);
 
         // set proper address of new entry
         entryAdress[nextEntry++] = offset;
@@ -59,10 +59,10 @@ void Log::initialize() {
         latestTerm = getTermNumber(&this->data[offset]);
         offset    += getDataSize(&this->data[offset]) + DATA_OFFSET;
     }
-    Serial.printf("Latest term: %lu\nnextEntry: %lu\noffset: %lu\n",
-                  latestTerm,
-                  nextEntry,
-                  offset);
+    RASPDBG("Latest term: %lu\nnextEntry: %lu\noffset: %lu\n",
+            latestTerm,
+            nextEntry,
+            offset)
 }
 
 uint16_t Log::append(uint32_t term, uint8_t *data, uint16_t size) {
@@ -161,10 +161,10 @@ bool Log::exist(uint16_t index) {
 void Log::printLastEntry() {
     uint8_t *p = this->getPointer(lastIndex());
 
-    Serial.printf("LOG index: %lu\nTerm:%lu, Val: %lu\n",
-                  lastIndex(),
-                  getTermNumber(p),
-                  unpack_uint8_t(p + DATA_OFFSET, 0));
+    RASPDBG("LOG index: %lu\nTerm:%lu, Val: %lu\n",
+            lastIndex(),
+            getTermNumber(p),
+            unpack_uint8_t(p + DATA_OFFSET, 0))
 }
 
 uint8_t * Log::getPointer(uint16_t index) {

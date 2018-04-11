@@ -12,7 +12,7 @@
 #define RASP_DEBUG
 
 // USE PRINT_DEBUG INSTEAD
-#define PRINT_DEBUG 1
+#define PRINT_DEBUG 0
 
 /* ++++++++++++++++++++++++ PRINT_DEBUG CONDITIONAL +++++++++++++++++++++++++ */
 
@@ -30,7 +30,7 @@
 #define IF_0(t, e) e
 #define IF_1(t, e) t
 
-#define RASPDBG(...) IF(PRINT_DEBUG, printf(__VA_ARGS__); , )
+#define RASPDBG(...) IF(PRINT_DEBUG, Serial.printf(__VA_ARGS__); , )
 
 
 /* +++++++++++++++++++++++++++++ CONSTANTS ++++++++++++++++++++++++++++++++++ */
@@ -43,9 +43,9 @@
 #define SSID_PW "RaSpFun1337!!"
 
 // RAFT TIMEOUTS
-#define MIN_ELECTION_TIMEOUT 500
-#define MAX_ELECTION_TIMEOUT 800
-#define HEARTBEAT_TIMEOUT 200
+#define MIN_ELECTION_TIMEOUT 150
+#define MAX_ELECTION_TIMEOUT 300
+#define HEARTBEAT_TIMEOUT 75
 
 // UDP SERVER
 #define UDP_INCOMING_BUFFER_SIZE 512

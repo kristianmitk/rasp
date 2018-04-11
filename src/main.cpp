@@ -1,5 +1,4 @@
 #include "rasp.h"
-
 void setup() {
     RASP_SETUP();
 }

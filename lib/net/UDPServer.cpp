@@ -6,23 +6,17 @@ void UDPServer::start() {
     Serial.printf("UDP Server bind to port: %d\n", RASP_DEFAULT_PORT);
 }
 
-// TODO: use followerState IPs
 void UDPServer::broadcastRequestVoteRPC(uint8_t *message) {
-    // TODO: use broadcast 192.168.1.255 ?
-    for (int i = 0; i < RASP_NUM_SERVERS; i++) {
-        if (servers[i].ID != chipId) {
-            Udp.beginPacket(servers[i].IP, RASP_DEFAULT_PORT);
-            Udp.write((char *)message, REQ_VOTE_REQ_MSG_SIZE);
-            Udp.endPacket();
-        }
-    }
+    Udp.beginPacket("192.168.1.255", RASP_DEFAULT_PORT);
+    Udp.write((char *)message, REQ_VOTE_REQ_MSG_SIZE);
+    Udp.endPacket();
     free(message);
 }
 
 void UDPServer::sendPacket(uint8_t *buffer, size_t size) {
-    Serial.printf("Sending single message of size: %d to: %s\n",
-                  size,
-                  senderIP.toString().c_str());
+    RASPDBG("Sending single message of size: %d to: %s\n",
+            size,
+            senderIP.toString().c_str())
 
     Udp.beginPacket(senderIP, senderPort);
     Udp.write((char *)buffer, size);
@@ -33,9 +27,10 @@ void UDPServer::sendPacket(uint8_t *buffer, size_t size) {
 void UDPServer::sendPacket(uint8_t *buffer, size_t size, uint8_t IP[4]) {
     IPAddress addr(IP);
 
-    Serial.printf("Sending single message of size: %d to: ",
-                  size);
+#if PRINT_DEBUG
+    Serial.printf("Sending single message of size: %d to: ", size);
     Serial.println(addr);
+#endif // if PRINT_DEBUG
     Udp.beginPacket(addr, RASP_DEFAULT_PORT);
     Udp.write((char *)buffer, size);
     Udp.endPacket();
@@ -46,10 +41,11 @@ void UDPServer::sendPacket(uint8_t  *buffer,
                            size_t    size,
                            IPAddress ip,
                            uint16_t  port) {
-    Serial.printf("Sending single message of size: %d to: ",
-                  size);
+#if PRINT_DEBUG
+    Serial.printf("Sending single message of size: %d to: ", size);
     Serial.print(ip);
     Serial.printf(":%d\n", port);
+#endif // if PRINT_DEBUG
     Udp.beginPacket(ip, port);
     Udp.write((char *)buffer, size);
     Udp.endPacket();
@@ -65,9 +61,9 @@ size_t UDPServer::parse() {
         this->senderIP   = Udp.remoteIP();
         this->senderPort = Udp.remotePort();
         printEventHeader(ServerState::getInstance().getCurrentTerm());
-        Serial.printf("Received %d bytes from %s\n",
-                      currentPacketSize,
-                      senderIP.toString().c_str());
+        RASPDBG("Received %d bytes from %s\n",
+                currentPacketSize,
+                senderIP.toString().c_str());
 
         Udp.read(packetBuffer, UDP_INCOMING_BUFFER_SIZE);
     }
@@ -90,9 +86,8 @@ void UDPServer::createClientRequest(uint16_t logIndex) {
     req.port     = senderPort;
     req.logIndex = logIndex;
     this->requests.push_back(req);
-    Serial.printf(
-        "Added a new client request for index: %lu\nNum requests: %lu\n",
-        senderPort,
-        logIndex,
-        this->requests.size());
+    RASPDBG("Added a new client request for index: %lu\nNum requests: %lu\n",
+            senderPort,
+            logIndex,
+            this->requests.size())
 }
