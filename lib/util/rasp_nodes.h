@@ -31,10 +31,11 @@ typedef struct raspServer {
 
 // NOTE: server running this code is included as well
 const raspServer_t servers[] = {
-    // { { 192, 168, 1, 21 }, 42712   },
-    // { { 192, 168, 1, 22 }, 44293   },
-    { { 192, 168, 1, 23 }, 9085487 },
-    { { 192, 168, 1, 24 }, 9053586 },
+    { { 192, 168, 1, 21 }, 42712   },
+    { { 192, 168, 1, 22 }, 44293   },
+
+    // { { 192, 168, 1, 23 }, 9085487 },
+    // { { 192, 168, 1, 24 }, 9053586 },
 };
 
 const uint8_t RASP_NUM_SERVERS = sizeof(servers) / sizeof(servers[0]);

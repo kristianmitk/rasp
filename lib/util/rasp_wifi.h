@@ -21,7 +21,7 @@ void connectToWiFi() {
     }
 
     RASPDBG("\nConnected to: %s\n", SSID)
-    Serial.println("Static IP: " + WiFi.localIP().toString());
+    Serial.println("\nStatic IP: " + WiFi.localIP().toString());
 }
 
 #endif // ifndef rasp_wifi_h

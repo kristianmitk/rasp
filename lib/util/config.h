@@ -3,18 +3,14 @@
 
 /* +++++++++++++++++++++++++++++++ ENV ++++++++++++++++++++++++++++++++++++++ */
 
-// specified if some initial setup routines have to be executed
+// specifies if some initial setup routines have to be executed
 // by now only used by the RASPFS class
 
 // #define INITIAL_SETUP
 
-// not used by now - evetually will minimize debug messages on serial output
-#define RASP_DEBUG
-
-// USE PRINT_DEBUG INSTEAD
-#define PRINT_DEBUG 0
-
 /* ++++++++++++++++++++++++ PRINT_DEBUG CONDITIONAL +++++++++++++++++++++++++ */
+
+#define PRINT_DEBUG 0
 
 // instead of using `printf("lorem ipsum %d", intVal)`
 // rather use `DEBUG("lorem ipsum %d", intVal)` which will substitude
@@ -43,9 +39,9 @@
 #define SSID_PW "RaSpFun1337!!"
 
 // RAFT TIMEOUTS
-#define MIN_ELECTION_TIMEOUT 150
-#define MAX_ELECTION_TIMEOUT 300
-#define HEARTBEAT_TIMEOUT 75
+#define MIN_ELECTION_TIMEOUT 300
+#define MAX_ELECTION_TIMEOUT 700
+#define HEARTBEAT_TIMEOUT 150
 
 // UDP SERVER
 #define UDP_INCOMING_BUFFER_SIZE 512

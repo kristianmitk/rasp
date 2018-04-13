@@ -1,9 +1,11 @@
 #include "Log.h"
 
 
- #define TERM_OFFSET 0
- #define SIZE_OFFSET 4
- #define DATA_OFFSET 6 // term (4 bytes) + size (2 bytes)
+#define TERM_OFFSET 0
+#define DATA_OFFSET 4
+
+#define RASPFS RASPFS::getInstance()
+
 
 /**
  * Returns the term number of a log entry
@@ -11,16 +13,9 @@
  * @return          term number of the log entry the pointer poits to
  */
 uint32_t getTermNumber(uint8_t *ptr) {
-    return unpack_uint32_t(ptr, TERM_OFFSET);
-}
+    if (!ptr) return 0;
 
-/**
- * Returns the size of the data of a log entry
- * @param  ptr      pointer to a log entry
- * @return          size of the log entry data the pointer poits to
- */
-uint16_t getDataSize(uint8_t *ptr) {
-    return unpack_uint16_t(ptr, SIZE_OFFSET);
+    return unpack_uint32_t(ptr, TERM_OFFSET);
 }
 
 /**
@@ -34,44 +29,34 @@ bool validIndex(uint16_t index) {
 }
 
 void Log::initialize() {
-    nextEntry  = 0;
-    latestTerm = 0;
+    size_t adrSize     = RASPFS.readLogAddresses((uint8_t *)&this->entryAddress);
+    size_t logDataSize = RASPFS.readLogData(this->data);
 
-    size_t currentLogSize = 0;
-    size_t offset         = 0;
+    // adrSize is always even numbered as we store 2 byte integers there
+    // so the number of entries is adrSize / 2
+    nextEntry = adrSize / 2;
 
-    currentLogSize = RASPFS::getInstance().readLog(this->data);
+    // so we know where to store the next entry and where the last one ends
+    if (nextEntry <= NUM_LOG_ENTRIES) this->entryAddress[nextEntry] = logDataSize;
 
-    RASPDBG("About to rebuild log from file system with size: %lu\n",
-            currentLogSize)
+    latestTerm = nextEntry ?
+                 getTermNumber(&this->data[this->entryAddress[nextEntry - 1]])
+                 : 0;
 
-    // we iterate through all entries and initialies proper log values (i.e
-    // lastTerm, nextEntry, entryAdress[])
-    while (offset < currentLogSize) { // TODO: disable soft WDT
-        // Serial.printf("Latest term: %lu\nnextEntry: %lu\noffset: %lu\n",
-        //               latestTerm,
-        //               nextEntry,
-        //               offset);
 
-        // set proper address of new entry
-        entryAdress[nextEntry++] = offset;
-
-        latestTerm = getTermNumber(&this->data[offset]);
-        offset    += getDataSize(&this->data[offset]) + DATA_OFFSET;
-    }
-    RASPDBG("Latest term: %lu\nnextEntry: %lu\noffset: %lu\n",
-            latestTerm,
-            nextEntry,
-            offset)
+    Serial.printf("[INFO] Rebuilt log from file-system!\n"
+                  "number of entries: %d, latestTerm: %d, data size: %d\n",
+                  nextEntry,
+                  latestTerm,
+                  logDataSize);
 }
 
 uint16_t Log::append(uint32_t term, uint8_t *data, uint16_t size) {
     // only append if we did not reach the entires limit
     if (nextEntry == NUM_LOG_ENTRIES) {
-        Serial.printf(
-            "[ERR] Log entries length limit of %d reached, cannot append: %lub\n",
-            NUM_LOG_ENTRIES,
-            size);
+        Serial.printf("[ERR] Log entries length limit of %d reached!\n",
+                      NUM_LOG_ENTRIES,
+                      size);
         return 0;
     }
 
@@ -80,10 +65,12 @@ uint16_t Log::append(uint32_t term, uint8_t *data, uint16_t size) {
     // we dont store the next value if it would exceed our data buffer
     if (offset + size + DATA_OFFSET > LOG_SIZE) {
         Serial.printf(
-            "[ERR] Log is full! Cannot append data.\n \
-            New data size: %lub (+ 6 for term/size), used log size: %lub\n",
+            "[ERR] Not enought memory space to append new entry!\n"
+            "New entry size: %lu, used size: %lu\n"
+            "max size is: %lu",
             size,
-            offset);
+            offset,
+            LOG_SIZE);
         return 0;
     }
 
@@ -91,18 +78,19 @@ uint16_t Log::append(uint32_t term, uint8_t *data, uint16_t size) {
 
     // set term
     pack_uint32_t(p, TERM_OFFSET, term);
-
-    // set size
-    pack_uint16_t(p, SIZE_OFFSET, size);
-
-    // set data
     memcpy(p + DATA_OFFSET, data, size);
-    this->entryAdress[nextEntry++] = offset;
 
-    latestTerm = term;
+    // note: len(entryAddress) == NUM_LOG_ENTRIES + 1
+    if ((++nextEntry) <= NUM_LOG_ENTRIES) {
+        this->entryAddress[nextEntry] = offset + DATA_OFFSET + size;
+    }
 
-    RASPFS::getInstance().appendLogEntry(p, size + DATA_OFFSET);
-    printLastEntry();
+    RASPFS.appendLogEntry(p, size + DATA_OFFSET,
+                          this->entryAddress[nextEntry - 1]);
+
+    this->latestTerm = term;
+
+
     return this->nextEntry;
 }
 
@@ -112,15 +100,16 @@ void Log::truncate(uint16_t index) {
     this->nextEntry  = index;
     this->latestTerm = this->getTerm(index);
 
-    RASPFS::getInstance().overwriteLog(this->data, this->size());
+    RASPFS.overwriteLog(this->data,
+                        this->size(),
+                        (uint8_t *)&this->entryAddress,
+                        nextEntry * sizeof(this->entryAddress[0]));
 }
 
 uint16_t Log::size() {
     if (lastIndex() == 0) return 0;
 
-    uint16_t adr = lastEntryAddress();
-
-    return adr + DATA_OFFSET + getDataSize(&this->data[adr]);
+    return this->entryAddress[nextEntry];
 }
 
 uint32_t Log::lastStoredTerm() {
@@ -128,7 +117,7 @@ uint32_t Log::lastStoredTerm() {
 }
 
 uint16_t Log::lastEntryAddress() {
-    return !lastIndex() ? 0 : entryAdress[lastIndex() - 1];
+    return !lastIndex() ? 0 : entryAddress[lastIndex() - 1];
 }
 
 logEntry_t * Log::getEntry(uint16_t index) {
@@ -139,8 +128,17 @@ logEntry_t * Log::getEntry(uint16_t index) {
     uint8_t *p = getPointer(index);
 
     entry->term = getTermNumber(p);
-    entry->size = getDataSize(p);
+    entry->size = (this->entryAddress[index] - this->entryAddress[index - 1]) -
+                  DATA_OFFSET;
     entry->data = p + DATA_OFFSET;
+
+    RASPDBG("returnig a logEntry_t at index: %d\n"
+            "term: %d size: %d data: %s\n",
+            index,
+            entry->term,
+            entry->size,
+            entry->data);
+
     return entry;
 }
 
@@ -161,12 +159,12 @@ bool Log::exist(uint16_t index) {
 void Log::printLastEntry() {
     uint8_t *p = this->getPointer(lastIndex());
 
-    RASPDBG("LOG index: %lu\nTerm:%lu, Val: %lu\n",
-            lastIndex(),
-            getTermNumber(p),
-            unpack_uint8_t(p + DATA_OFFSET, 0))
+    Serial.printf("LOG index: %lu\nTerm:%lu, Val: %lu\n",
+                  lastIndex(),
+                  getTermNumber(p),
+                  unpack_uint8_t(p + DATA_OFFSET, 0));
 }
 
 uint8_t * Log::getPointer(uint16_t index) {
-    return !validIndex(index) ? NULL : &this->data[this->entryAdress[index - 1]];
+    return !validIndex(index) ? NULL : &this->data[this->entryAddress[index - 1]];
 }

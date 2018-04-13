@@ -46,6 +46,7 @@ void UDPServer::sendPacket(uint8_t  *buffer,
     Serial.print(ip);
     Serial.printf(":%d\n", port);
 #endif // if PRINT_DEBUG
+
     Udp.beginPacket(ip, port);
     Udp.write((char *)buffer, size);
     Udp.endPacket();
@@ -80,14 +81,20 @@ void UDPServer::clearBuffer() {
 
 // TODO: add request ID
 void UDPServer::createClientRequest(uint16_t logIndex) {
-    clientRequest_t req;
+    if (!logIndex) {
+        smMsg.type     = Message::StateMachineWriteERR;
+        smMsg.dataSize = 0;
+        sendPacket(smMsg.marshall(), smMsg.size(), senderIP, senderPort);
+    } else {
+        clientRequest_t req;
 
-    req.ip       = senderIP;
-    req.port     = senderPort;
-    req.logIndex = logIndex;
-    this->requests.push_back(req);
-    RASPDBG("Added a new client request for index: %lu\nNum requests: %lu\n",
-            senderPort,
-            logIndex,
-            this->requests.size())
+        req.ip       = senderIP;
+        req.port     = senderPort;
+        req.logIndex = logIndex;
+        this->requests.push_back(req);
+        RASPDBG("Added a new client request for index: %lu\nNum requests: %lu\n",
+                senderPort,
+                logIndex,
+                this->requests.size())
+    }
 }

@@ -6,10 +6,16 @@
 #include "marshall.h"
 #include "config.h"
 
-
 #define CURRENT_TERM    "/SS/currentTerm"
 #define VOTED_FOR       "/SS/votedFor"
 #define LOG             "/SS/log"
+#define LOG_ADR         "/SS/logAddresses"
+
+
+#pragma push_macro("PRINT_DEBUG")
+#undef PRINT_DEBUG
+#define PRINT_FS_DEBUG 1
+#define PRINT_DEBUG PRINT_FS_DEBUG
 
 /**
  * A wrapper that handles communication with the SPIFFS file system.
@@ -78,23 +84,24 @@ public:
      *
      * TODO: remove/preprocess console prints
      */
-    size_t appendLogEntry(uint8_t *data, uint16_t size) {
+    size_t appendLogEntry(uint8_t *data, uint16_t size, uint16_t address) {
         if (!SPIFFS.exists(LOG)) {
             RASPDBG("%s does not exist", LOG)
             openLog();
         }
-        size_t written = 0;
+        size_t w1 = 0;
+        size_t w2 = 0;
 
-        RASPDBG("Before: %lu\n", millis())
+        w1 = _logData.write(data, size);
+        w2 = _logAddresses.write((uint8_t *)&address, sizeof(address));
 
-        written = _logF.write(data, size);
+        RASPDBG(
+            "Written: %lu bytes. New log data size: %lu bytes, log addr. size: %lu\n",
+            w1 + w2,
+            _logData.size(),
+            _logAddresses.size())
 
-        RASPDBG("Written: %lu bytes to LOG. New file size: %lu bytes\n",
-                written,
-                _logF.size())
-        RASPDBG("After: %lu\n", millis())
-
-        return written;
+        return w1 + w2;
     }
 
     /**
@@ -106,9 +113,14 @@ public:
      * @param  buf          pointer to data block where to load the content
      * @return {size_t}     number of bytes read from `LOG` file
      */
-    size_t readLog(uint8_t *buf) {
-        RASPDBG("File log size: %lu\n", _logF.size())
-        return _logF.read(buf, _logF.size());
+    size_t readLogData(uint8_t *buf) {
+        RASPDBG("File log size: %lu\n", _logData.size())
+        return _logData.read(buf, _logData.size());
+    }
+
+    size_t readLogAddresses(uint8_t *buf) {
+        Serial.printf("File logAddresses size: %lu\n", _logAddresses.size());
+        return _logAddresses.read(buf, _logAddresses.size());
     }
 
     /**
@@ -121,17 +133,24 @@ public:
      * @param  size         size of data block
      * @return {size_t}     number of bytes written to `LOG` file
      */
-    size_t overwriteLog(uint8_t *buf, uint16_t size) {
-        RASPDBG("Log size before overwriting: %lu\n", _logF.size())
+    size_t overwriteLog(uint8_t *data,
+                        uint16_t dataSize,
+                        uint8_t *adr,
+                        uint16_t adrSize) {
+        RASPDBG("Log size before overwriting: %lu\n", _logData.size())
 
-        File   tmp = SPIFFS.open(LOG, "w");
-        size_t written = 0;
+        File   tl = SPIFFS.open(LOG, "w");
+        File   tla = SPIFFS.open(LOG_ADR, "w");
+        size_t w1  = 0;
+        size_t w2  = 0;
 
-        written = tmp.write(buf, size);
-        RASPDBG("Log size after overwriting: %lu\n", tmp.size())
-        tmp.close();
+        w1 = tl.write(data, dataSize);
+        w2 = tla.write(adr, adrSize);
+        RASPDBG("Log size after overwriting: %lu\n", tl.size())
+        tl.close();
+        tla.close();
 
-        return written;
+        return w1 + w2;
     }
 
 private:
@@ -172,7 +191,8 @@ private:
      * Opens the `LOG` file in 'a+' mode.
      */
     void openLog() {
-        _logF = SPIFFS.open(LOG, "a+");
+        _logData      = SPIFFS.open(LOG, "a+");
+        _logAddresses = SPIFFS.open(LOG_ADR, "a+");
     }
 
     /**
@@ -190,7 +210,7 @@ private:
 
         SPIFFS.info(info);
 
-        Serial.printf(
+        RASPDBG(
             "[INFO] about SPIFFS:\n"
             "Max open files: %lu\n"
             "Block size: %lu\n"
@@ -203,7 +223,7 @@ private:
             info.maxPathLength,
             info.pageSize,
             info.usedBytes,
-            info.totalBytes);
+            info.totalBytes)
     }
 
     /**
@@ -246,7 +266,6 @@ private:
 
 #endif // ifdef INITIAL_SETUP
 
-        // logPart = 1;
         this->openLog();
     }
 
@@ -257,7 +276,8 @@ private:
     void operator=(RASPFS const&);
 
 
-    File _logF;
+    File _logData;
+    File _logAddresses;
 
     // We separate the log into three files. Given the fact that SPIFFS gets
     // slow when a file reaches 20kb we avoid this problem by actually using
@@ -266,4 +286,7 @@ private:
     // uint8_t logPart;
 };
 
+
+#undef PRINT_DEBUG
+#pragma pop_macro("PRINT_DEBUG")
 #endif // ifndef rasp_fs_h

@@ -6,8 +6,6 @@
 #include "config.h"
 #include "marshall.h"
 
-#define RASPDBG(...) IF(PRINT_DEBUG, Serial.printf(__VA_ARGS__); , )
-
 #define PACKET_BODY_OFFSET 1
 
 #define REQ_VOTE_REQ_MSG_SIZE (PACKET_BODY_OFFSET + 14)
@@ -39,10 +37,13 @@ public:
         StateMachineReadReq  = 128,
         StateMachineWriteReq = 129,
         lastValForClientReq  = 130,
+
         StateMachineReadRes  = 131,
         StateMachineWriteRes = 132,
-        lastValForClientRes  = 133,
-        followerRedirect     = 150
+        StateMachineWriteERR = 135,
+        lastValForClientRes  = 136,
+
+        followerRedirect = 150
     } type;
 
     /**
