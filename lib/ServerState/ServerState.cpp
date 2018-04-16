@@ -1,7 +1,7 @@
 #include "ServerState.h"
-#include "StateMachine.h"
 #include "Log.h"
 #include "config.h"
+#include "StateMachine.h"
 
 #define generateTimeout() random(MIN_ELECTION_TIMEOUT, MAX_ELECTION_TIMEOUT)
 #define MAJORITY (RASP_NUM_SERVERS / 2 + 1)
@@ -9,8 +9,8 @@
 #define _LOG        Log::getInstance()
 #define _UDPServer  UDPServer::getInstance()
 #define _RASPFS     RASPFS::getInstance()
-#define _SM         StateMachine::getInstance()
 
+StateMachine sm;
 
 followerState_t * ServerState::getFollower(uint32_t id) {
     for (int i = 0; i < NUM_FOLLOWERS; i++) {
@@ -473,7 +473,7 @@ Message * ServerState::handleSMreadReq(Message *msg) {
 
     if (this->role != LEADER) return clientRedirectMessage();
 
-    smData_t *smRes =  _SM.read(p->data, p->dataSize);
+    smData_t *smRes = sm.read(p->data, p->dataSize);
     smMsg.type     = Message::StateMachineReadRes;
     smMsg.data     = smRes->data;
     smMsg.dataSize = smRes->size;
@@ -510,8 +510,9 @@ void ServerState::checkForNewSMcommands() {
         logEntry_t *entry = _LOG.getEntry(this->lastApplied);
 
         if ((this->role == LEADER) && (entry->term == this->currentTerm)) {
-            smData_t *smRes = _SM.apply(entry->data,
-                                        entry->size);
+            smData_t *smRes = sm.apply(
+                entry->data,
+                entry->size);
             std::vector<clientRequest_t>::iterator it =
                 std::find_if(
                     _UDPServer.requests.begin(),
@@ -528,7 +529,7 @@ void ServerState::checkForNewSMcommands() {
             _UDPServer.requests.erase(it);
             RASPDBG("size after erase: %d\n",  _UDPServer.requests.size())
         } else {
-            _SM.apply(entry->data, entry->size);
+            sm.apply(entry->data, entry->size);
         }
         free(entry);
     }

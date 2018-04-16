@@ -7,7 +7,6 @@
 #include "marshall.h"
 #include "UDPServer.h"
 #include "ServerState.h"
-#include "StateMachine.h"
 
 /* -------------------------- SETUP -------------------------- */
 void RASP_SETUP() {
@@ -26,7 +25,6 @@ void RASP_SETUP() {
     // lazy construction and state initialization
     ServerState::getInstance().initialize();
 
-    StateMachine::getInstance();
 
     // lazy construction and and open server
     // NOTE: keep this always as last command in this setup() function
