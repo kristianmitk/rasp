@@ -255,11 +255,10 @@ uint8_t * StateMachineMessage::marshall() {
     pack_uint8_t(buffer, 0, this->type);
 
     if (this->dataSize) {
-        memcpy(&buffer[1], this->data, this->dataSize);
+        memcpy(&buffer[PACKET_BODY_OFFSET], this->data, this->dataSize);
         free(this->data);
-        return buffer;
     }
-    return NULL;
+    return buffer;
 }
 
 void StateMachineMessage::serialPrint() {

@@ -13,14 +13,14 @@
 /**
  * In the following the structure of a log entry is visualized:
  *
- * +----------------------------------------+
- * |        |       |                       |
- * -- term -- size -- data ------------------
- * 0        4       6                      size
- * |        |       |                       |
- * +----------------------------------------+
+ * +--------------------------------+
+ * |        |                       |
+ * -- term -- data ------------------
+ * 0        4                       |
+ * |        |                       |
+ * +--------------------------------+
  *
- * -> Log entries may have dynamic sizes.
+ * Log entries have dynamic sizes.
  */
 
 /**
@@ -86,13 +86,6 @@ public:
      * @return {uint32_t}       latest stored term number
      */
     uint32_t lastStoredTerm();
-
-
-    /**
-     * Prints the last log entry stored to the serial output
-     * @return {void}
-     */
-    void printLastEntry();
 
 
     /**
@@ -166,6 +159,11 @@ private:
      */
     uint16_t lastEntryAddress();
 
+    /**
+     * Prints the last log entry stored to the serial output
+     * @return {void}
+     */
+    void     printLastEntry();
 
     /**
      * Returns a pointer to the requested entry specified by the `index`
@@ -184,6 +182,8 @@ private:
     uint8_t data[LOG_SIZE];
 
     // stores for every log entry the proper offset in the data[] buffer
-    uint16_t entryAdress[NUM_LOG_ENTRIES];
+    // + 1 so we can deduce the size of a log entry at index i by subractring
+    // entryAddress[i+1] + entryAddress[i]
+    uint16_t entryAddress[NUM_LOG_ENTRIES + 1];
 };
 #endif // ifndef Log_h

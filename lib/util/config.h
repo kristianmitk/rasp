@@ -3,18 +3,16 @@
 
 /* +++++++++++++++++++++++++++++++ ENV ++++++++++++++++++++++++++++++++++++++ */
 
-// specified if some initial setup routines have to be executed
+// specifies if some initial setup routines have to be executed
 // by now only used by the RASPFS class
 
 // #define INITIAL_SETUP
 
-// not used by now - evetually will minimize debug messages on serial output
-#define RASP_DEBUG
-
-// USE PRINT_DEBUG INSTEAD
-#define PRINT_DEBUG 0
+#define USE_BROADCAST_ADDRESS
 
 /* ++++++++++++++++++++++++ PRINT_DEBUG CONDITIONAL +++++++++++++++++++++++++ */
+
+#define PRINT_DEBUG 0
 
 // instead of using `printf("lorem ipsum %d", intVal)`
 // rather use `DEBUG("lorem ipsum %d", intVal)` which will substitude
@@ -54,5 +52,6 @@
 // LOG
 #define LOG_SIZE 0x4000
 #define NUM_LOG_ENTRIES 512
+
 
 #endif // ifndef rasp_config_h

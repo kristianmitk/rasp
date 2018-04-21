@@ -1,13 +1,16 @@
 #include "ServerState.h"
-#include "StateMachine.h"
 #include "Log.h"
 #include "config.h"
+#include "StateMachine.h"
 
 #define generateTimeout() random(MIN_ELECTION_TIMEOUT, MAX_ELECTION_TIMEOUT)
-
 #define MAJORITY (RASP_NUM_SERVERS / 2 + 1)
 
-#define _LOG Log::getInstance()
+#define _LOG        Log::getInstance()
+#define _UDPServer  UDPServer::getInstance()
+#define _RASPFS     RASPFS::getInstance()
+
+StateMachine sm;
 
 followerState_t * ServerState::getFollower(uint32_t id) {
     for (int i = 0; i < NUM_FOLLOWERS; i++) {
@@ -21,8 +24,8 @@ void ServerState::initialize() {
     commitIndex     = 0;
     lastApplied     = 0;
     role            = FOLLOWER;
-    currentTerm     = RASPFS::getInstance().readCurrentTerm();
-    votedFor        = RASPFS::getInstance().readVotedFor();
+    currentTerm     = _RASPFS.readCurrentTerm();
+    votedFor        = _RASPFS.readVotedFor();
     electionTimeout = generateTimeout();
     lastTimeout     = millis();
     _LOG.initialize();
@@ -62,7 +65,7 @@ void ServerState::loopHandler() {
 }
 
 void ServerState::handleMessage() {
-    Message *msg = UDPServer::getInstance().checkForMessage();
+    Message *msg = _UDPServer.checkForMessage();
 
     if (!msg) return;
 
@@ -96,7 +99,7 @@ void ServerState::handleMessage() {
         msg =  NULL;
     }
 
-    if (msg) UDPServer::getInstance().sendPacket(msg->marshall(), msg->size());
+    if (msg) _UDPServer.sendPacket(msg->marshall(), msg->size());
 
     RASPDBG("End at: %lu\n", millis())
 }
@@ -111,12 +114,12 @@ Message * ServerState::handleRequestVoteReq(Message *msg) {
 
     // our state is more up to date than the candidate state
     if (p->term <= this->currentTerm) {
-        RASPDBG("VoteGranted = false")
+        RASPDBG("VoteGranted = false\n")
         return &rvRes;
     }
 
     if (!this->votedFor || (this->currentTerm < p->term)) {
-        currentTerm = RASPFS::getInstance().writeCurrentTerm(p->term);
+        currentTerm = _RASPFS.writeCurrentTerm(p->term);
         role        = FOLLOWER;
         rvRes.term  = p->term;
 
@@ -124,10 +127,9 @@ Message * ServerState::handleRequestVoteReq(Message *msg) {
         if ((p->lastLogTerm > _LOG.lastStoredTerm()) ||
             ((p->lastLogTerm == _LOG.lastStoredTerm()) &&
              (p->lastLogIndex >= _LOG.lastIndex()))) {
-            RASPDBG("VoteGranted = true")
+            RASPDBG("VoteGranted = true\n")
 
-            votedFor =
-                RASPFS::getInstance().writeVotedFor(p->candidateID);
+            votedFor          = _RASPFS.writeVotedFor(p->candidateID);
             rvRes.voteGranted = true;
         } else {
             return &rvRes;
@@ -164,7 +166,7 @@ Message * ServerState::handleRequestVoteRes(Message *msg) {
         }
 
         if (this->currentTerm < p->term) {
-            currentTerm = RASPFS::getInstance().writeCurrentTerm(p->term);
+            currentTerm = _RASPFS.writeCurrentTerm(p->term);
             role        = FOLLOWER;
         }
     }
@@ -178,7 +180,7 @@ void ServerState::checkElectionTimeout() {
     rvReq = RequestVoteRequest();
 
     if (millis() > lastTimeout + electionTimeout) {
-        RASPFS::getInstance().writeCurrentTerm(++this->currentTerm);
+        _RASPFS.writeCurrentTerm(++this->currentTerm);
         printEventHeader(currentTerm);
         RASPDBG("\n[WARN] Election timout. Starting a new election on term: %d\n",
                 this->currentTerm)
@@ -186,7 +188,7 @@ void ServerState::checkElectionTimeout() {
         role = CANDIDATE;
 
         // starting a new election always results in first voting for itself
-        votedFor      = RASPFS::getInstance().writeVotedFor(chipId);
+        votedFor      = _RASPFS.writeVotedFor(chipId);
         receivedVotes = 1;
 
         rvReq.term         = this->currentTerm;
@@ -194,7 +196,7 @@ void ServerState::checkElectionTimeout() {
         rvReq.lastLogIndex = _LOG.lastIndex();
         rvReq.lastLogTerm  = _LOG.lastStoredTerm();
 
-        UDPServer::getInstance().broadcastRequestVoteRPC(rvReq.marshall());
+        _UDPServer.broadcastRequestVoteRPC(rvReq.marshall());
         resetElectionTimeout();
     }
 }
@@ -239,7 +241,7 @@ Message * ServerState::handleAppendEntriesReq(Message *msg) {
 
     if (p->term > currentTerm) {
         RASPDBG("p->term > currentTerm\n")
-        this->currentTerm = RASPFS::getInstance().writeCurrentTerm(p->term);
+        this->currentTerm = _RASPFS.writeCurrentTerm(p->term);
         aeRes.term        = currentTerm;
     }
 
@@ -308,7 +310,7 @@ Message * ServerState::handleAppendEntriesRes(Message *msg) {
     p->serialPrint();
 
     if (p->term > currentTerm) {
-        currentTerm = RASPFS::getInstance().writeCurrentTerm(p->term);
+        currentTerm = _RASPFS.writeCurrentTerm(p->term);
         this->role  = FOLLOWER;
         return NULL;
     }
@@ -324,7 +326,7 @@ Message * ServerState::handleAppendEntriesRes(Message *msg) {
         if (fstate->matchIndex > commitIndex) checkForNewCommitedIndex();
     }
 
-    // adjust next index to send, givne the matching information from other peer
+    // adjust next index to send, given the matching information from other peer
     fstate->nextIndex = max(fstate->nextIndex, uint16_t(p->matchIndex + 1));
 
     // decrement the nextIndex if we did not received a success
@@ -345,12 +347,10 @@ Message * ServerState::handleAppendEntriesRes(Message *msg) {
         // 1)
         if (fstate->nextIndex > _LOG.lastIndex()) return NULL;
     }
-
     createAERequestMessage(fstate, p->success);
-
     aeReq.serialPrint();
-
     fstate->lastTimeout = millis();
+
     return &aeReq;
 }
 
@@ -370,17 +370,14 @@ void ServerState::checkHeartbeatTimeouts() {
     for (int i = 0; i < NUM_FOLLOWERS; i++) {
         if (followerStates[i].lastTimeout + heartbeatTimeout < millis()) {
             printEventHeader(currentTerm);
-            RASPDBG("lastTimeout: %lu\n",
-                    followerStates[i].lastTimeout)
-
-            RASPDBG("Sending AE Req, nextIndex: %lu\n",
-                    followerStates[i].nextIndex)
+            RASPDBG("lastTimeout: %lu\n", followerStates[i].lastTimeout)
+            RASPDBG("Sending AE Req, nextIndex: %lu\n", followerStates[i].nextIndex)
 
             createAERequestMessage(&followerStates[i], true);
 
-            UDPServer::getInstance().sendPacket(aeReq.marshall(),
-                                                aeReq.size(),
-                                                followerStates[i].IP);
+            _UDPServer.sendPacket(aeReq.marshall(),
+                                  aeReq.size(),
+                                  followerStates[i].IP);
             followerStates[i].lastTimeout = millis();
         }
     }
@@ -430,7 +427,8 @@ int compare(const void *e1, const void *e2) {
     return (f > s) - (f < s);
 }
 
-// TODO: remove console prints
+// TODO: can we just simply iterate over the array instead of sorting?
+// value changes max by 1... - prove?
 void ServerState::checkForNewCommitedIndex() {
     if (this->role != LEADER) return;
 
@@ -472,8 +470,7 @@ Message * ServerState::handleSMreadReq(Message *msg) {
 
     if (this->role != LEADER) return clientRedirectMessage();
 
-    smData_t *smRes =  StateMachine::getInstance().read(p->data,
-                                                        p->dataSize);
+    smData_t *smRes = sm.read(p->data, p->dataSize);
     smMsg.type     = Message::StateMachineReadRes;
     smMsg.data     = smRes->data;
     smMsg.dataSize = smRes->size;
@@ -485,10 +482,10 @@ Message * ServerState::handleSMwriteReq(Message *msg) {
 
     p->serialPrint();
 
-    if (this->role != LEADER) return clientRedirectMessage();
+    if (this->role == FOLLOWER) return clientRedirectMessage();
+    if (this->role == CANDIDATE) return NULL;
 
-    UDPServer::getInstance().createClientRequest(this->append(p->data,
-                                                              p->dataSize));
+    _UDPServer.createClientRequest(this->append(p->data, p->dataSize));
     return NULL;
 }
 
@@ -511,28 +508,26 @@ void ServerState::checkForNewSMcommands() {
         logEntry_t *entry = _LOG.getEntry(this->lastApplied);
 
         if ((this->role == LEADER) && (entry->term == this->currentTerm)) {
-            smData_t *smRes = StateMachine::getInstance().apply(entry->data,
-                                                                entry->size);
+            smData_t *smRes = sm.apply(
+                entry->data,
+                entry->size);
             std::vector<clientRequest_t>::iterator it =
                 std::find_if(
-                    UDPServer::getInstance().requests.begin(),
-                    UDPServer::getInstance().requests.end(),
+                    _UDPServer.requests.begin(),
+                    _UDPServer.requests.end(),
                     findClient(this->lastApplied));
             smMsg.type     = Message::StateMachineWriteRes;
             smMsg.data     = smRes->data;
             smMsg.dataSize = smRes->size;
-            UDPServer::getInstance().sendPacket(smMsg.marshall(),
-                                                smMsg.size(),
-                                                it->ip,
-                                                it->port);
-            RASPDBG("size before erase: %d\n",
-                    UDPServer::getInstance().requests.size())
-            UDPServer::        getInstance().requests.erase(it);
-
-            RASPDBG("size after erase: %d\n",
-                    UDPServer::getInstance().requests.size())
+            _UDPServer.sendPacket(smMsg.marshall(),
+                                  smMsg.size(),
+                                  it->ip,
+                                  it->port);
+            RASPDBG("size before erase: %d\n", _UDPServer.requests.size())
+            _UDPServer.requests.erase(it);
+            RASPDBG("size after erase: %d\n",  _UDPServer.requests.size())
         } else {
-            StateMachine::getInstance().apply(entry->data, entry->size);
+            sm.apply(entry->data, entry->size);
         }
         free(entry);
     }
