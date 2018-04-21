@@ -7,9 +7,19 @@ void UDPServer::start() {
 }
 
 void UDPServer::broadcastRequestVoteRPC(uint8_t *message) {
+#ifdef USE_BROADCAST_ADDRESS
     Udp.beginPacket("192.168.1.255", RASP_DEFAULT_PORT);
     Udp.write((char *)message, REQ_VOTE_REQ_MSG_SIZE);
     Udp.endPacket();
+#else
+    for (int i = 0; i < RASP_NUM_SERVERS; i++) {
+        if (servers[i].ID != chipId) {
+            Udp.beginPacket(servers[i].IP, RASP_DEFAULT_PORT);
+            Udp.write((char *)message, REQ_VOTE_REQ_MSG_SIZE);
+            Udp.endPacket();
+        }
+    };
+#endif // ifndef USE_BROADCAST_ADDRESS
     free(message);
 }
 

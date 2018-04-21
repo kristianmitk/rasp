@@ -326,7 +326,7 @@ Message * ServerState::handleAppendEntriesRes(Message *msg) {
         if (fstate->matchIndex > commitIndex) checkForNewCommitedIndex();
     }
 
-    // adjust next index to send, givne the matching information from other peer
+    // adjust next index to send, given the matching information from other peer
     fstate->nextIndex = max(fstate->nextIndex, uint16_t(p->matchIndex + 1));
 
     // decrement the nextIndex if we did not received a success
@@ -370,11 +370,8 @@ void ServerState::checkHeartbeatTimeouts() {
     for (int i = 0; i < NUM_FOLLOWERS; i++) {
         if (followerStates[i].lastTimeout + heartbeatTimeout < millis()) {
             printEventHeader(currentTerm);
-            RASPDBG("lastTimeout: %lu\n",
-                    followerStates[i].lastTimeout)
-
-            RASPDBG("Sending AE Req, nextIndex: %lu\n",
-                    followerStates[i].nextIndex)
+            RASPDBG("lastTimeout: %lu\n", followerStates[i].lastTimeout)
+            RASPDBG("Sending AE Req, nextIndex: %lu\n", followerStates[i].nextIndex)
 
             createAERequestMessage(&followerStates[i], true);
 
@@ -431,7 +428,7 @@ int compare(const void *e1, const void *e2) {
 }
 
 // TODO: can we just simply iterate over the array instead of sorting?
-// value changes max by 1...
+// value changes max by 1... - prove?
 void ServerState::checkForNewCommitedIndex() {
     if (this->role != LEADER) return;
 
@@ -485,7 +482,8 @@ Message * ServerState::handleSMwriteReq(Message *msg) {
 
     p->serialPrint();
 
-    if (this->role != LEADER) return clientRedirectMessage();
+    if (this->role == FOLLOWER) return clientRedirectMessage();
+    if (this->role == CANDIDATE) return NULL;
 
     _UDPServer.createClientRequest(this->append(p->data, p->dataSize));
     return NULL;

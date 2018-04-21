@@ -8,6 +8,8 @@
 
 // #define INITIAL_SETUP
 
+#define USE_BROADCAST_ADDRESS
+
 /* ++++++++++++++++++++++++ PRINT_DEBUG CONDITIONAL +++++++++++++++++++++++++ */
 
 #define PRINT_DEBUG 0
@@ -50,5 +52,6 @@
 // LOG
 #define LOG_SIZE 0x4000
 #define NUM_LOG_ENTRIES 512
+
 
 #endif // ifndef rasp_config_h

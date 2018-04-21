@@ -20,7 +20,7 @@
  * |        |                       |
  * +--------------------------------+
  *
- * Log have dynamic sizes.
+ * Log entries have dynamic sizes.
  */
 
 /**
