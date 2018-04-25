@@ -206,12 +206,13 @@ void ServerState::checkGrantedVotes() {
     RASPDBG("required: %d, received %d\n", MAJORITY, receivedVotes)
 
     if (MAJORITY <= receivedVotes) {
-        Serial.printf("ELECTED LEADER!");
+        Serial.println("ELECTED LEADER!");
 
         for (int i = 0; i < NUM_FOLLOWERS; i++) {
             followerStates[i].matchIndex  = 0;
             followerStates[i].nextIndex   = _LOG.lastIndex() + 1;
             followerStates[i].lastTimeout = millis();
+            followerStates[i].lastSucceededResponse = 0;
         }
 
         role             = LEADER;
@@ -316,7 +317,9 @@ Message * ServerState::handleAppendEntriesRes(Message *msg) {
     }
 
     followerState_t *fstate = getFollower(p->serverId);
-
+    // store the time of the last response. Needed to approximate linearizable reads
+    // see handleSMreadReq
+    fstate->lastSucceededResponse = millis();
     // in case of a success matchIndex can only be incremented
     // but if its just a reply to an empty heartbeat we dont have to check
     // for new commit index...
@@ -469,6 +472,25 @@ Message * ServerState::handleSMreadReq(Message *msg) {
     p->serialPrint();
 
     if (this->role != LEADER) return clientRedirectMessage();
+
+
+    int quorum = 1;
+    long curr = millis();
+    Serial.printf("current millis: %lu\n",curr);
+    if(!READ_TOLERANCE) {
+        quorum = MAJORITY;
+    } else {
+        for (int i = 0; i < NUM_FOLLOWERS; i++) {
+            Serial.printf("lastSucceded: %lu\n", followerStates[i].lastSucceededResponse);
+            if(curr - followerStates[i].lastSucceededResponse < READ_TOLERANCE) {
+                quorum++;
+            }
+        }
+    }
+    if(quorum < MAJORITY) {
+        Serial.printf("Quorum not reached. Only %d nodes seem to be alive\n", quorum);
+        return NULL;
+    }
 
     smData_t *smRes = sm.read(p->data, p->dataSize);
     smMsg.type     = Message::StateMachineReadRes;

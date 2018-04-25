@@ -14,7 +14,6 @@ typedef struct clientRequest {
     IPAddress ip;
     uint16_t  port;
     uint16_t  logIndex;
-    uint32_t  id;
 } clientRequest_t;
 
 struct findClient {

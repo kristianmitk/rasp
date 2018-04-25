@@ -256,7 +256,15 @@ uint8_t * StateMachineMessage::marshall() {
 
     if (this->dataSize) {
         memcpy(&buffer[PACKET_BODY_OFFSET], this->data, this->dataSize);
+// we dont free data if we want to offer linearizable writes and the response is
+// to a write request, as the data needs to be persisted at the SM along with
+// a ID number
+#ifdef SM_LINEARIZABLE_WRITES
+        if(this->type == Message::StateMachineReadRes)
+            free(this->data);
+#else
         free(this->data);
+#endif // ifdef SM_LINEARIZABLE_WRITES
     }
     return buffer;
 }
