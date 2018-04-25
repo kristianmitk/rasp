@@ -9,7 +9,7 @@
 // #define INITIAL_SETUP
 
 #define USE_BROADCAST_ADDRESS
-
+#define SM_LINEARIZABLE_WRITES
 /* ++++++++++++++++++++++++ PRINT_DEBUG CONDITIONAL +++++++++++++++++++++++++ */
 
 #define PRINT_DEBUG 0
@@ -44,6 +44,8 @@
 #define MIN_ELECTION_TIMEOUT 150
 #define MAX_ELECTION_TIMEOUT 300
 #define HEARTBEAT_TIMEOUT 75
+
+#define READ_TOLERANCE 300
 
 // UDP SERVER
 #define UDP_INCOMING_BUFFER_SIZE 512

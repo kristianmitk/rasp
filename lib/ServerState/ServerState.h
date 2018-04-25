@@ -17,6 +17,7 @@ typedef struct followerState {
     uint16_t nextIndex;
     uint16_t matchIndex;
     uint32_t lastTimeout;
+    uint32_t lastSucceededResponse;
 } followerState_t;
 
 
